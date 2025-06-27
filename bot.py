@@ -22,16 +22,16 @@ async def start(_, msg: Message):
             "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
             "⚠️ This bot is sealed for chosen users only.\n"
             "🔗 Want to use the 🔥 URL Uploader Bot?\n"
-            "👁‍🗨 Contact the ghost of the Akatsuki ➤ @Madara_Uchiha_lI"
+            "👁‍🔦 Contact the ghost of the Akatsuki ➔ @Madara_Uchiha_lI"
         )
         return
     await msg.reply(
-    "👁 Welcome to the Forbidden Grounds...\n"
-    "🔗 Send a **magnet**, **torrent**, or **direct URL** to begin the ritual.\n"
-    "✍️ Want to rename the offering? Use `/rename filename.ext`\n\n"
-    "⚠️ To unveil all secrets and forbidden powers,\n"
-    "📜 Use the scroll: `/help` — *the path to knowledge is open to few.*"
-)
+        "👁 Welcome to the Forbidden Grounds...\n"
+        "🔗 Send a **magnet**, **torrent**, or **direct URL** to begin the ritual.\n"
+        "✍️ Want to rename the offering? Use `/rename filename.ext`\n\n"
+        "⚠️ To unveil all secrets and forbidden powers,\n"
+        "📜 Use the scroll: `/help` — *the path to knowledge is open to few.*"
+    )
 
 @bot.on_message(filters.command("help"))
 async def help_command(_, msg: Message):
@@ -162,11 +162,13 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             await reply.edit("❌ Invalid link.")
             active_downloads.pop(uid, None)
             return
+
         rename = pending_rename.get(uid, {}).get("rename")
         if rename:
             new_path = os.path.join("downloads", rename)
             os.rename(file_path, new_path)
             file_path = new_path
+
         await reply.edit("📤 Uploading to Telegram...")
         start = time.time()
         sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
