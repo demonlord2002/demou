@@ -51,6 +51,10 @@ async def handle_url(_, message: Message):
         await reply.delete()
         os.remove(file_path)
 
+    if message.from_user.id != OWNER_ID:
+    await message.reply("❌ You are not authorized to use this bot.")
+    return
+
     except Exception as e:
         await reply.edit(f"❌ Error: {e}")
 
