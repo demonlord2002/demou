@@ -7,6 +7,7 @@ import os
 import time
 import aiohttp
 import asyncio
+from urllib.parse import urlparse, unquote
 
 bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -136,9 +137,11 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         if url.startswith("magnet:") or url.endswith(".torrent"):
             file_path, error = download_with_aria2(url)
         elif url.startswith("http://") or url.startswith("https://"):
-            file_name = url.split("/")[-1]
-            file_path = f"downloads/{file_name}"
+            parsed = urlparse(url)
+            file_name = os.path.basename(parsed.path)
+            file_name = unquote(file_name)[:100]  # Trim to safe length
             os.makedirs("downloads", exist_ok=True)
+            file_path = f"downloads/{file_name}"
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
