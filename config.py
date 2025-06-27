@@ -8,4 +8,4 @@ OWNER_ID = int(os.getenv("OWNER_ID"))
 USERS_FILE = "users.json"
 
 # ✅ Add allowed users here
-ALLOWED_USERS = [int(os.getenv("OWNER_ID")), 123456789, 987654321]
+ALLOWED_USERS = [int(os.getenv("OWNER_ID")), 7590607726, 987654321]
