@@ -122,18 +122,12 @@ async def handle_url(_, message: Message):
     if uid not in ALLOWED_USERS:
         await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
         return
-    if uid in pending_rename and not message.text.strip().startswith(("http", "magnet:")):
-        pending_rename[uid]["rename"] = message.text.strip()
-        return await process_upload(message, pending_rename[uid]["url"], pending_rename.pop(uid)["msg"])
     url = message.text.strip()
-    reply = await message.reply("📥 Preparing download...")
+    reply = await message.reply("📥 Starting download...")
     pending_rename[uid] = {"url": url, "msg": message}
     active_downloads[uid] = True
-    await reply.edit("✍️ Send `/rename filename.ext` in 30s to rename.")
-    await asyncio.sleep(30)
-    if uid in pending_rename:
-        await process_upload(message, url, message)
-        pending_rename.pop(uid)
+    await process_upload(message, url, message)
+    pending_rename.pop(uid, None)
 
 async def process_upload(message: Message, url: str, user_msg: Message):
     uid = message.from_user.id
@@ -163,6 +157,14 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             active_downloads.pop(uid, None)
             return
 
+        if not file_path or error:
+            await reply.edit(f"❌ Download failed: {error or 'Unknown error'}")
+            active_downloads.pop(uid, None)
+            return
+
+        await reply.edit("✍️ Send `/rename filename.ext` within 30s if you want to rename the file...")
+        await asyncio.sleep(30)
+
         rename = pending_rename.get(uid, {}).get("rename")
         if rename:
             new_path = os.path.join("downloads", rename)
@@ -176,6 +178,7 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         await reply.delete()
         await sent.delete()
         os.remove(file_path)
+
     except Exception as e:
         await reply.edit(f"❌ Error: {e}")
     finally:
@@ -183,4 +186,3 @@ async def process_upload(message: Message, url: str, user_msg: Message):
 
 print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
-
