@@ -13,7 +13,7 @@ bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKE
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
     if msg.from_user.id not in ALLOWED_USERS:
-    await msg.reply(
+       await msg.reply(
     "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
     "⚠️ This bot is sealed for chosen users only.\n"
     "🔗 Want to use the 🔥 URL Uploader Bot?\n"
