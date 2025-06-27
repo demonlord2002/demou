@@ -1,7 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from config import API_ID, API_HASH, BOT_TOKEN
-from config import ALLOWED_USERS
+from config import API_ID, API_HASH, BOT_TOKEN, ALLOWED_USERS
 from helper import download_with_aria2
 import os
 import time
@@ -13,31 +12,36 @@ bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKE
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
     if msg.from_user.id not in ALLOWED_USERS:
-       await msg.reply(
-    "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
-    "⚠️ This bot is sealed for chosen users only.\n"
-    "🔗 Want to use the 🔥 URL Uploader Bot?\n"
-    "👁‍🗨 Contact the ghost of the Akatsuki ➤ @Madara_Uchiha_lI"
-)
+        await msg.reply(
+            "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
+            "⚠️ This bot is sealed for chosen users only.\n"
+            "🔗 Want to use the 🔥 URL Uploader Bot?\n"
+            "👁‍🗨 Contact the ghost of the Akatsuki ➤ @Madara_Uchiha_lI"
+        )
         return
     await msg.reply("👋 Welcome! Send me a magnet link or direct URL to upload to Telegram.")
 
-# Main handler for all other messages (magnet/URL)
+# Handle magnet / torrent / direct link
 @bot.on_message(filters.text & ~filters.command(["start"]))
 async def handle_url(_, message: Message):
-    if message.from_user.id != OWNER_ID:
-        await message.reply("❌ You are not authorized to use this bot.")
+    if message.from_user.id not in ALLOWED_USERS:
+        await message.reply(
+            "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
+            "⚠️ This bot is sealed for chosen users only.\n"
+            "🔗 Want to use the 🔥 URL Uploader Bot?\n"
+            "👁‍🗨 Contact the ghost of the Akatsuki ➤ @Madara_Uchiha_lI"
+        )
         return
 
     url = message.text.strip()
     reply = await message.reply("📥 Downloading...")
 
     try:
-        # Check for magnet or torrent
+        # Magnet or Torrent
         if url.startswith("magnet:") or url.endswith(".torrent"):
             file_path, error = download_with_aria2(url)
 
-        # Check for direct HTTP/HTTPS URL
+        # Direct URL
         elif url.startswith("http://") or url.startswith("https://"):
             file_name = url.split("/")[-1]
             file_path = f"downloads/{file_name}"
@@ -65,7 +69,6 @@ async def handle_url(_, message: Message):
             return
 
         await reply.edit("📤 Uploading to Telegram...")
-
         start = time.time()
         await message.reply_document(
             document=file_path,
