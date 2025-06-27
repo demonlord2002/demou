@@ -123,7 +123,7 @@ async def handle_url(_, message: Message):
         await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
         return
     url = message.text.strip()
-    reply = await message.reply(⚡ Starting download...")
+    reply = await message.reply("📥 Starting download...")
     pending_rename[uid] = {"url": url, "msg": message}
     active_downloads[uid] = True
     await process_upload(message, url, message)
