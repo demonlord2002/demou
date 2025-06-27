@@ -25,8 +25,13 @@ async def start(_, msg: Message):
             "👁‍🗨 Contact the ghost of the Akatsuki ➤ @Madara_Uchiha_lI"
         )
         return
-    await msg.reply("👋 Welcome! Send a magnet, torrent or direct URL.\n"
-                    "➕ To rename, send `/rename filename.ext` after the link.")
+    await msg.reply(
+    "👁 Welcome to the Forbidden Grounds...\n"
+    "🔗 Send a **magnet**, **torrent**, or **direct URL** to begin the ritual.\n"
+    "✍️ Want to rename the offering? Use `/rename filename.ext`\n\n"
+    "⚠️ To unveil all secrets and forbidden powers,\n"
+    "📜 Use the scroll: `/help` — *the path to knowledge is open to few.*"
+)
 
 @bot.on_message(filters.command("help"))
 async def help_command(_, msg: Message):
