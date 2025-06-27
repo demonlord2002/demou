@@ -1,6 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
+from config import API_ID, API_HASH, BOT_TOKEN
+from config import ALLOWED_USERS
 from helper import download_with_aria2
 import os
 import time
@@ -11,8 +12,8 @@ bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKE
 # /start command
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
-    if msg.from_user.id != OWNER_ID:
-        await msg.reply(
+    if msg.from_user.id not in ALLOWED_USERS:
+    await msg.reply(
     "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
     "⚠️ This bot is sealed for chosen users only.\n"
     "🔗 Want to use the 🔥 URL Uploader Bot?\n"
