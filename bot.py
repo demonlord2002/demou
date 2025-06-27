@@ -12,7 +12,12 @@ bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKE
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
     if msg.from_user.id != OWNER_ID:
-        await msg.reply("❌ You are not authorized to use this bot.")
+        await message.reply(
+    "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
+    "⚠️ This bot is sealed for chosen users only.\n"
+    "🔗 Want to use the 🔥 URL Uploader Bot?\n"
+    "👁‍🗨 Contact the ghost of the Akatsuki ➤ @Madara_Uchiha_lI"
+)
         return
     await msg.reply("👋 Welcome! Send me a magnet link or direct URL to upload to Telegram.")
 
