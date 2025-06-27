@@ -181,4 +181,6 @@ async def process_upload(message: Message, url: str, user_msg: Message):
     finally:
         active_downloads.pop(uid, None)
 
+print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
+
