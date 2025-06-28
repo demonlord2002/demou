@@ -5,7 +5,5 @@ API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
+# Dynamic user management file path
 USERS_FILE = "users.json"
-
-# ✅ Add allowed users here
-ALLOWED_USERS = [int(os.getenv("OWNER_ID")), 000000, 000000]
