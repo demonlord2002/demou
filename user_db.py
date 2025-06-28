@@ -35,5 +35,10 @@ def format_user_list():
     users = get_users()
     if not users:
         return "👥 No users currently allowed."
-    return "👥 Allowed Users List:\n" + "\n".join(str(u) for u in users)
+    text = "👥 Allowed Users List:\n"
+    for uid in users:
+        text += f"[`{uid}`](tg://user?id={uid})\n"
+    return text
+
+
     
