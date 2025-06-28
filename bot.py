@@ -17,8 +17,7 @@ user_modes = {}
 
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
-    uid = msg.from_user.id
-    if uid != OWNER_ID and uid not in get_users():
+    if msg.from_user.id not in get_users():
         await msg.reply(
             "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
             "⚠️ This bot is sealed for chosen users only.\n"
@@ -26,10 +25,6 @@ async def start(_, msg: Message):
             "👁‍🔦 Contact the ghost of the Akatsuki ➔ @Madara_Uchiha_lI"
         )
         return
-
-    if uid == OWNER_ID and uid not in get_users():
-        add_user(uid)
-
     await msg.reply(
         "👁 Welcome to the Forbidden Grounds...\n"
         "🔗 Send a **magnet**, **torrent**, or **direct URL** to begin the ritual.\n"
@@ -56,7 +51,9 @@ async def help_command(_, msg: Message):
         "`/broadcast` - Owner only: send message to all users\n"
         "`/addusers` - Owner only: add user ID\n"
         "`/delusers` - Owner only: remove user ID\n"
-        "`/getusers` - Owner only: list allowed users"
+        "`/getusers` - Owner only: list allowed users\n\n"
+        "☠️ Only chosen users have access.\n"
+        "DM @Madara_Uchiha_lI to unlock the gate."
     )
 
 @bot.on_message(filters.command("rename"))
@@ -132,7 +129,7 @@ async def add_users_cmd(_, msg: Message):
         return
     try:
         uid = int(msg.command[1])
-        add_user(uid)
+        add_user(uid, by_owner=True)
         await msg.reply(f"✅ User `{uid}` added to allowed list.")
     except:
         await msg.reply("❌ Invalid user ID.")
