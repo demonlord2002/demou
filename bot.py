@@ -17,6 +17,9 @@ user_modes = {}
 
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
+    if msg.from_user.id == OWNER_ID:
+        add_user(msg.from_user.id, by_owner=True)
+
     if msg.from_user.id not in get_users():
         await msg.reply(
             "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
@@ -25,6 +28,7 @@ async def start(_, msg: Message):
             "👁‍🔦 Contact the ghost of the Akatsuki ➔ @Madara_Uchiha_lI"
         )
         return
+
     await msg.reply(
         "👁 Welcome to the Forbidden Grounds...\n"
         "🔗 Send a **magnet**, **torrent**, or **direct URL** to begin the ritual.\n"
@@ -48,10 +52,10 @@ async def help_command(_, msg: Message):
         "`/cancel` - Cancel current session\n"
         "`/status` - Show active upload\n"
         "`/mode` - Set upload mode\n"
-        "`/broadcast` - Owner only: send message to all users\n"
-        "`/addusers` - Owner only: add user ID\n"
-        "`/delusers` - Owner only: remove user ID\n"
-        "`/getusers` - Owner only: list allowed users\n\n"
+        "`/broadcast` - Owner only\n"
+        "`/addusers` - Owner only\n"
+        "`/delusers` - Owner only\n"
+        "`/getusers` - Owner only\n\n"
         "☠️ Only chosen users have access.\n"
         "DM @Madara_Uchiha_lI to unlock the gate."
     )
@@ -156,7 +160,10 @@ async def get_users_list(_, msg: Message):
         return
     await msg.reply(format_user_list())
 
-@bot.on_message(filters.text & ~filters.command(["start", "help", "rename", "cancel", "status", "mode", "broadcast", "addusers", "delusers", "getusers"]))
+@bot.on_message(filters.text & ~filters.command([
+    "start", "help", "rename", "cancel", "status", "mode",
+    "broadcast", "addusers", "delusers", "getusers"
+]))
 async def handle_url(_, message: Message):
     uid = message.from_user.id
     if uid not in get_users():
