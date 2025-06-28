@@ -17,7 +17,6 @@ user_modes = {}
 
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
-    add_user(msg.from_user.id)
     if msg.from_user.id not in get_users():
         await msg.reply(
             "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
@@ -26,6 +25,7 @@ async def start(_, msg: Message):
             "👁‍🔦 Contact the ghost of the Akatsuki ➔ @Madara_Uchiha_lI"
         )
         return
+    add_user(msg.from_user.id)
     await msg.reply(
         "👁 Welcome to the Forbidden Grounds...\n"
         "🔗 Send a **magnet**, **torrent**, or **direct URL** to begin the ritual.\n"
