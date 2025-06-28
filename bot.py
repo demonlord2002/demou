@@ -1,7 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from config import API_ID, API_HASH, BOT_TOKEN, ALLOWED_USERS, OWNER_ID
-from user_db import add_user, get_users
+from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
+from user_db import add_user, get_users, remove_user, format_user_list
 from helper import download_with_aria2
 import os
 import time
@@ -18,7 +18,7 @@ user_modes = {}
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
     add_user(msg.from_user.id)
-    if msg.from_user.id not in ALLOWED_USERS:
+    if msg.from_user.id not in get_users():
         await msg.reply(
             "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
             "⚠️ This bot is sealed for chosen users only.\n"
@@ -49,7 +49,10 @@ async def help_command(_, msg: Message):
         "`/cancel` - Cancel current session\n"
         "`/status` - Show active upload\n"
         "`/mode` - Set upload mode\n"
-        "`/broadcast` - Owner only: send message to all users\n\n"
+        "`/broadcast` - Owner only: send message to all users\n"
+        "`/addusers` - Owner only: add user ID\n"
+        "`/delusers` - Owner only: remove user ID\n"
+        "`/getusers` - Owner only: list allowed users\n\n"
         "☠️ Only chosen users have access.\n"
         "DM @Madara_Uchiha_lI to unlock the gate."
     )
@@ -57,7 +60,7 @@ async def help_command(_, msg: Message):
 @bot.on_message(filters.command("rename"))
 async def rename_command(_, msg: Message):
     uid = msg.from_user.id
-    if uid not in ALLOWED_USERS:
+    if uid not in get_users():
         await msg.reply("❌ Access denied.")
         return
     if len(msg.command) < 2:
@@ -117,10 +120,47 @@ async def broadcast_command(_, msg: Message):
             fail += 1
     await msg.reply(f"📢 Broadcast complete:\n✅ Sent: {success} users\n❌ Failed: {fail}")
 
-@bot.on_message(filters.text & ~filters.command(["start", "help", "rename", "cancel", "status", "mode", "broadcast"]))
+@bot.on_message(filters.command("addusers"))
+async def add_users_cmd(_, msg: Message):
+    if msg.from_user.id != OWNER_ID:
+        await msg.reply("❌ You are not allowed to add users.")
+        return
+    if len(msg.command) < 2:
+        await msg.reply("❗ Usage: `/addusers 123456789`")
+        return
+    try:
+        uid = int(msg.command[1])
+        add_user(uid)
+        await msg.reply(f"✅ User `{uid}` added to allowed list.")
+    except:
+        await msg.reply("❌ Invalid user ID.")
+
+@bot.on_message(filters.command("delusers"))
+async def del_users_cmd(_, msg: Message):
+    if msg.from_user.id != OWNER_ID:
+        await msg.reply("❌ You are not allowed to delete users.")
+        return
+    if len(msg.command) < 2:
+        await msg.reply("❗ Usage: `/delusers 123456789`")
+        return
+    try:
+        uid = int(msg.command[1])
+        remove_user(uid)
+        await msg.reply(f"❌ User `{uid}` removed from allowed list.")
+    except:
+        await msg.reply("❌ Invalid user ID.")
+
+@bot.on_message(filters.command("getusers"))
+async def get_users_list(_, msg: Message):
+    if msg.from_user.id != OWNER_ID:
+        await msg.reply("❌ Only the owner can view the user list.")
+        return
+    await msg.reply(format_user_list())
+
+@bot.on_message(filters.text & ~filters.command(["start", "help", "rename", "cancel", "status", "mode", "broadcast", "addusers", "delusers", "getusers"]))
 async def handle_url(_, message: Message):
     uid = message.from_user.id
-    if uid not in ALLOWED_USERS:
+    if uid not in get_users():
         await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
         return
     url = message.text.strip()
@@ -139,7 +179,7 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         elif url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
             file_name = os.path.basename(parsed.path)
-            file_name = unquote(file_name)[:100]  # Trim to safe length
+            file_name = unquote(file_name)[:100]
             os.makedirs("downloads", exist_ok=True)
             file_path = f"downloads/{file_name}"
             async with aiohttp.ClientSession() as session:
