@@ -18,23 +18,24 @@ user_modes = {}
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
     uid = msg.from_user.id
-    add_user(uid)
-
     if uid != OWNER_ID and uid not in get_users():
         await msg.reply(
             "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
             "⚠️ This bot is sealed for chosen users only.\n"
             "🔗 Want to use the 🔥 URL Uploader Bot?\n"
-            "🕁️ Contact the ghost of the Akatsuki ➔ @Madara_Uchiha_lI"
+            "👁‍🔦 Contact the ghost of the Akatsuki ➔ @Madara_Uchiha_lI"
         )
         return
 
+    if uid == OWNER_ID and uid not in get_users():
+        add_user(uid)
+
     await msg.reply(
-        "🕁 Welcome to the Forbidden Grounds...\n"
+        "👁 Welcome to the Forbidden Grounds...\n"
         "🔗 Send a **magnet**, **torrent**, or **direct URL** to begin the ritual.\n"
         "✍️ Want to rename the offering? Use `/rename filename.ext`\n\n"
         "⚠️ To unveil all secrets and forbidden powers,\n"
-        "📜 Use the scroll: `/help`"
+        "📜 Use the scroll: `/help` — *the path to knowledge is open to few.*"
     )
 
 @bot.on_message(filters.command("help"))
@@ -55,14 +56,13 @@ async def help_command(_, msg: Message):
         "`/broadcast` - Owner only: send message to all users\n"
         "`/addusers` - Owner only: add user ID\n"
         "`/delusers` - Owner only: remove user ID\n"
-        "`/getusers` - Owner only: list allowed users\n\n"
-        "☠️ Only chosen users have access."
+        "`/getusers` - Owner only: list allowed users"
     )
 
 @bot.on_message(filters.command("rename"))
 async def rename_command(_, msg: Message):
     uid = msg.from_user.id
-    if uid != OWNER_ID and uid not in get_users():
+    if uid not in get_users():
         await msg.reply("❌ Access denied.")
         return
     if len(msg.command) < 2:
@@ -162,7 +162,7 @@ async def get_users_list(_, msg: Message):
 @bot.on_message(filters.text & ~filters.command(["start", "help", "rename", "cancel", "status", "mode", "broadcast", "addusers", "delusers", "getusers"]))
 async def handle_url(_, message: Message):
     uid = message.from_user.id
-    if uid != OWNER_ID and uid not in get_users():
+    if uid not in get_users():
         await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
         return
     url = message.text.strip()
