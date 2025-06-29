@@ -18,7 +18,6 @@ def download_with_aria2(url):
         if not download.is_complete:
             return None, "Download did not complete."
 
-        # Get all downloaded files
         valid_files = []
         for f in download.files:
             if not os.path.exists(f.path):
@@ -26,18 +25,20 @@ def download_with_aria2(url):
             size = os.path.getsize(f.path)
             ext = os.path.splitext(f.path)[1].lower()
 
-            # Skip junk extensions
-            if ext in [".nfo", ".txt", ".url", ".exe", ".applicant"]:
-                continue
-            if size < 1024 * 100:  # Skip files less than 100 KB
+            # ⛔ Skip trash files
+            junk_exts = [
+                ".txt", ".url", ".nfo", ".ds_store", ".exe", ".lnk", ".ini",
+                ".html", ".htm", ".xml", ".bat", ".sh", ".cmd", ".applicant"
+            ]
+            if ext in junk_exts or size < 1024 * 100:
                 continue
 
             valid_files.append((f.path, size))
 
         if not valid_files:
-            return None, "No usable file found in the torrent."
+            return None, "No valid file found in the torrent."
 
-        # Pick largest valid file
+        # ✅ Pick largest valid file
         best_file = max(valid_files, key=lambda x: x[1])[0]
         return best_file, None
 
