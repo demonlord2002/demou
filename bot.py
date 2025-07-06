@@ -9,7 +9,7 @@ import aiohttp
 import asyncio
 from urllib.parse import urlparse, unquote
 
-bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH)
+bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 pending_rename = {}
 active_downloads = {}
