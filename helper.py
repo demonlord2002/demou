@@ -1,7 +1,6 @@
 import aria2p
 import os
 import time
-import math
 
 # Connect to aria2c with RPC secret
 aria2 = aria2p.API(
@@ -13,7 +12,7 @@ aria2 = aria2p.API(
 )
 
 def format_bytes(size):
-    # Format file size (e.g., MB, GB)
+    """Convert bytes to human-readable format"""
     power = 2**10
     n = 0
     units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -27,7 +26,7 @@ def download_with_aria2(url):
         start_time = time.perf_counter()
         download = aria2.add_uris([url])
 
-        # Wait until the download is finished
+        # Wait for download to complete
         download.wait_for_completion()
 
         if not download.is_complete:
@@ -41,7 +40,7 @@ def download_with_aria2(url):
             if not os.path.exists(path):
                 continue
 
-            # Clean unsafe characters in filename
+            # Sanitize filename
             safe_name = "".join(c if c.isalnum() or c in "-_.()" else "_" for c in os.path.basename(path))
             safe_path = os.path.join(os.path.dirname(path), safe_name)
             if path != safe_path:
@@ -56,6 +55,7 @@ def download_with_aria2(url):
             elif size > 100 * 1024:
                 valid_files.append((path, size))
 
+        # Choose the best file
         if video_files:
             best_file = max(video_files, key=lambda x: x[1])
         elif valid_files:
@@ -64,15 +64,21 @@ def download_with_aria2(url):
             return None, "❌ No valid downloadable file found."
 
         end_time = time.perf_counter()
-        duration = max(end_time - start_time, 0.01)  # Avoid divide-by-zero
+        duration = max(end_time - start_time, 0.01)
+
         size_str = format_bytes(best_file[1])
         speed = format_bytes(best_file[1] / duration) + "/s"
         time_taken = f"{duration:.2f} sec"
 
-        caption = f"✅ File: `{os.path.basename(best_file[0])}`\n📦 Size: `{size_str}`\n🚀 Speed: `{speed}`\n⏱️ Time: `{time_taken}`"
+        caption = (
+            f"✅ File: `{os.path.basename(best_file[0])}`\n"
+            f"📦 Size: `{size_str}`\n"
+            f"🚀 Speed: `{speed}`\n"
+            f"⏱️ Time: `{time_taken}`"
+        )
+
         return best_file[0], caption
 
     except Exception as e:
         return None, f"⚠️ Error: {str(e)}"
-
         
