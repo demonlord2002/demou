@@ -289,21 +289,18 @@ async def upload_progress(current, total):
     except:
         pass
 
-try:
-    sent = await message.reply_document(
-        file_path,
-        caption=f"✅ `{file_name}`\n📦 {sizeof_fmt(file_size)}",
-        progress=upload_progress,
-        progress_args=()
-    )
-    # ⏱️ After upload
-    upload_time = round(time.time() - start, 2)
-    await reply.edit(
-        f"✅ Uploaded `{file_name}`\n📦 {sizeof_fmt(file_size)}\n⏱️ In {upload_time}s"
-    )
-except Exception as e:
-    await reply.edit(f"❌ Upload failed: `{str(e)}`")
+sent = await message.reply_document(
+    file_path,
+    caption=f"✅ `{file_name}`\n📦 {sizeof_fmt(file_size)}",
+    progress=upload_progress,
+    progress_args=()
+)
 
+# ⏱️ After upload
+upload_time = round(time.time() - start, 2)
+await reply.edit(
+    f"✅ Uploaded `{file_name}`\n📦 {sizeof_fmt(file_size)}\n⏱️ In {upload_time}s"
+)
 
         # 🧹 Auto-clean
         await asyncio.sleep(600)
