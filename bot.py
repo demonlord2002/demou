@@ -290,8 +290,6 @@ def progress_bar(percent):
     full = int(percent // 10)
     empty = 10 - full
     return "[" + "▰" * full + "▱" * empty + "]"
-    finally:
-        active_downloads.pop(uid, None)
 
 print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
