@@ -7,6 +7,7 @@ import os
 import time
 import aiohttp
 import asyncio
+import shutil
 from urllib.parse import urlparse, unquote
 
 bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -59,20 +60,50 @@ async def help_command(_, msg: Message):
         "DM @Madara_Uchiha_lI to unlock the gate."
     )
 
-@bot.on_message(filters.command("rename"))
+@bot.on_message(filters.command("rename") & filters.reply)
 async def rename_command(_, msg: Message):
-    uid = msg.from_user.id
-    if uid not in get_users():
-        await msg.reply("❌ Access denied.")
-        return
+    user_id = msg.from_user.id
+    reply = msg.reply_to_message
+
+    # ✅ Check command argument
     if len(msg.command) < 2:
-        await msg.reply("❌ Usage: `/rename newfilename.ext`")
-        return
-    if uid not in pending_rename:
-        await msg.reply("❗ No URL sent yet. Send a link first.")
-        return
-    pending_rename[uid]["rename"] = msg.command[1]
-    await msg.reply(f"✅ Filename set to: `{msg.command[1]}`")
+        return await msg.reply("❌ Usage: `/rename newfilename.ext`\n\n👉 Reply to a file and use the command with new filename.")
+
+    new_name = msg.command[1]
+
+    # ✅ Check if replied message has a downloadable file
+    if not (reply.document or reply.video or reply.audio):
+        return await msg.reply("❌ Please reply to a media file (document/video/audio).")
+
+    sent = await msg.reply("⏬ Downloading file...")
+
+    # ✅ Download the file
+    media = reply.document or reply.video or reply.audio
+    original_path = await reply.download()
+    
+    # ✅ Ensure extension is preserved if not given
+    ext = os.path.splitext(media.file_name)[1]
+    if not os.path.splitext(new_name)[1]:
+        new_name += ext
+
+    new_path = f"./downloads/{new_name}"
+
+    try:
+        os.makedirs("./downloads", exist_ok=True)
+        shutil.move(original_path, new_path)
+    except Exception as e:
+        return await sent.edit(f"❌ Failed to rename: {e}")
+
+    # ✅ Upload new renamed file
+    await sent.edit("⏫ Uploading renamed file...")
+
+    try:
+        await msg.reply_document(document=new_path, caption=f"✅ Renamed to `{new_name}`")
+        await sent.delete()
+        os.remove(new_path)
+    except Exception as e:
+        await sent.edit(f"❌ Upload failed: {e}")
+
 
 @bot.on_message(filters.command("cancel"))
 async def cancel_command(_, msg: Message):
