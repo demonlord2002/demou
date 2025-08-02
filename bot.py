@@ -266,41 +266,42 @@ async def process_upload(message: Message, url: str, reply: Message):
             await reply.edit("❌ File not found after download.")
             return
 
-        # ✅ Upload
-        await reply.edit("📤 Uploading to Telegram...")
-        start = time.time()
-        file_size = os.path.getsize(file_path)
-        file_name = os.path.basename(file_path)
+# ✅ Upload
+await reply.edit("📤 Uploading to Telegram...")
+start = time.time()
+file_size = os.path.getsize(file_path)
+file_name = os.path.basename(file_path)
 
-        async def upload_progress(current, total):
-            percent = current / total * 100 if total else 0
-            bar = progress_bar(percent)
-            speed = sizeof_fmt(current / (time.time() - start + 1e-6)) + "/s"
-            uploaded = sizeof_fmt(current)
-            total_str = sizeof_fmt(total)
-            status = (
-                f"📤 **Uploading:** {percent:.2f}%\n"
-                f"{bar}\n"
-                f"➩ **Speed:** {speed}\n"
-                f"➩ **Done:** {uploaded} / {total_str}"
-    )
+async def upload_progress(current, total):
+    percent = current / total * 100 if total else 0
+    bar = progress_bar(percent)
+    speed = sizeof_fmt(current / (time.time() - start + 1e-6)) + "/s"
+    uploaded = sizeof_fmt(current)
+    total_str = sizeof_fmt(total)
+    status = (
+        f"📤 **Uploading:** {percent:.2f}%\n"
+        f"{bar}\n"
+        f"➩ **Speed:** {speed}\n"
+        f"➩ **Done:** {uploaded} / {total_str}"
+    )
     try:
-        await reply.edit(status)
-    except:
-        pass
-        
+        await reply.edit(status)
+    except:
+        pass
+
 sent = await message.reply_document(
-    file_path,
-    caption=f"✅ `{file_name}`\n📦 {sizeof_fmt(file_size)}",
-    progress=upload_progress,
-    progress_args=()
+    file_path,
+    caption=f"✅ `{file_name}`\n📦 {sizeof_fmt(file_size)}",
+    progress=upload_progress,
+    progress_args=()
 )
 
 # ⏱️ After upload
 upload_time = round(time.time() - start, 2)
 await reply.edit(
-    f"✅ Uploaded `{file_name}`\n📦 {sizeof_fmt(file_size)}\n⏱️ In {upload_time}s"
+    f"✅ Uploaded `{file_name}`\n📦 {sizeof_fmt(file_size)}\n⏱️ In {upload_time}s"
 )
+
 
         # 🧹 Auto-clean
         await asyncio.sleep(600)
