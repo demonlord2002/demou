@@ -189,6 +189,7 @@ async def get_users_list(_, msg: Message):
 ]))
 
 # === Utility Functions ===
+
 def sanitize_filename(name):
     return "".join(c for c in name if c.isalnum() or c in (' ', '.', '_')).rstrip()
 
@@ -197,6 +198,7 @@ def sizeof_fmt(num):
         if num < 1024:
             return f"{num:.2f} {unit}"
         num /= 1024
+    return f"{num:.2f} PB"
 
 def progress_bar(percent):
     full = int(percent // 10)
@@ -204,11 +206,11 @@ def progress_bar(percent):
     return "[" + "▰" * full + "▱" * empty + "]"
 
 
-# === MAIN PROCESS FUNCTION ===
+# === Main Upload Logic ===
+
 async def process_upload(message: Message, url: str, reply: Message):
     file_path = None
     try:
-        # 🌐 Handle Direct Links
         if url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
             raw_name = unquote(os.path.basename(parsed.path)) or "file.bin"
@@ -232,6 +234,7 @@ async def process_upload(message: Message, url: str, reply: Message):
                             await f.write(chunk)
                             done += len(chunk)
                             now = time.time()
+
                             if now - last_update > 2:
                                 percent = done / total_size * 100 if total_size else 0
                                 bar = progress_bar(percent)
@@ -244,7 +247,6 @@ async def process_upload(message: Message, url: str, reply: Message):
                                 )
                                 await reply.edit(status)
                                 last_update = now
-
         else:
             await reply.edit("❌ Invalid URL or unsupported format.")
             return
@@ -294,7 +296,8 @@ async def process_upload(message: Message, url: str, reply: Message):
         await reply.edit(f"❌ Error: `{str(e)}`")
 
 
-# === COMMAND HANDLER ===
+# === Command Handler ===
+
 @bot.on_message(filters.command("upload") & filters.private)
 async def handle_upload(client, message: Message):
     if len(message.command) < 2:
