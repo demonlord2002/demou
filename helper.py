@@ -13,7 +13,7 @@ aria2 = aria2p.API(
 def download_with_aria2(url):
     try:
         download = aria2.add_uris([url])
-        download.wait_for_completion()
+        download.wait_for_completion(timeout=0)
 
         if not download.is_complete:
             return None, "Download did not complete."
@@ -44,4 +44,3 @@ def download_with_aria2(url):
 
     except Exception as e:
         return None, str(e)
-        
