@@ -189,22 +189,6 @@ async def get_users_list(_, msg: Message):
     "broadcast", "addusers", "delusers", "getusers"
 ]))
 
-async def handle_url(_, message: Message):
-    uid = message.from_user.id
-    if uid not in get_users():
-        await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
-        return
-
-    url = message.text.strip()
-    reply = await message.reply("📥 Starting fast download...")
-    active_downloads[uid] = True
-
-    try:
-        await process_upload(message, url, reply)
-    finally:
-        active_downloads.pop(uid, None)
-
-
 async def process_upload(message: Message, url: str, reply: Message):
     uid = message.from_user.id
     file_path = None
@@ -217,7 +201,7 @@ async def process_upload(message: Message, url: str, reply: Message):
                 await reply.edit(f"❌ Aria2 Error: {error}")
                 return
 
-        # 🌐 Direct HTTP/HTTPS
+        # 🌐 Direct Link
         elif url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
             raw_name = unquote(os.path.basename(parsed.path)) or "file.bin"
@@ -244,7 +228,6 @@ async def process_upload(message: Message, url: str, reply: Message):
                             done += len(chunk)
                             now = time.time()
 
-                            # ⏱️ Update every 2 seconds
                             if now - last_update > 2:
                                 percent = done / total_size * 100 if total_size else 0
                                 bar = progress_bar(percent)
@@ -266,52 +249,50 @@ async def process_upload(message: Message, url: str, reply: Message):
             await reply.edit("❌ File not found after download.")
             return
 
-#✅ Upload
-try:
-    await reply.edit("📤 Uploading to Telegram...")
-    start = time.time()
-    file_size = os.path.getsize(file_path)
-    file_name = os.path.basename(file_path)
+        # ✅ Upload
+        await reply.edit("📤 Uploading to Telegram...")
+        start = time.time()
+        file_size = os.path.getsize(file_path)
+        file_name = os.path.basename(file_path)
 
-    async def upload_progress(current, total):
-        percent = current / total * 100 if total else 0
-        bar = progress_bar(percent)
-        speed = sizeof_fmt(current / (time.time() - start + 1e-6)) + "/s"
-        uploaded = sizeof_fmt(current)
-        total_str = sizeof_fmt(total)
-        status = (
-            f"📤 **Uploading:** {percent:.2f}%\n"
-            f"{bar}\n"
-            f"➩ **Speed:** {speed}\n"
-            f"➩ **Done:** {uploaded} / {total_str}"
+        async def upload_progress(current, total):
+            percent = current / total * 100 if total else 0
+            bar = progress_bar(percent)
+            speed = sizeof_fmt(current / (time.time() - start + 1e-6)) + "/s"
+            uploaded = sizeof_fmt(current)
+            total_str = sizeof_fmt(total)
+            status = (
+                f"📤 **Uploading:** {percent:.2f}%\n"
+                f"{bar}\n"
+                f"➩ **Speed:** {speed}\n"
+                f"➩ **Done:** {uploaded} / {total_str}"
+            )
+            try:
+                await reply.edit(status)
+            except:
+                pass
+
+        sent = await message.reply_document(
+            file_path,
+            caption=f"✅ `{file_name}`\n📦 {sizeof_fmt(file_size)}",
+            progress=upload_progress,
+            progress_args=(),
         )
-        try:
-            await reply.edit(status)
-        except:
-            pass
 
-    sent = await message.reply_document(
-        file_path,
-        caption=f"✅ `{file_name}`\n📦 {sizeof_fmt(file_size)}",
-        progress=upload_progress,
-        progress_args=(),
-    )
+        # ⏱️ After upload
+        upload_time = round(time.time() - start, 2)
+        await reply.edit(
+            f"✅ Uploaded `{file_name}`\n📦 {sizeof_fmt(file_size)}\n⏱️ In {upload_time}s"
+        )
 
-    upload_time = round(time.time() - start, 2)
-    await reply.edit(
-        f"✅ Uploaded `{file_name}`\n📦 {sizeof_fmt(file_size)}\n⏱️ In {upload_time}s"
-    )
-except Exception as e:
-    await reply.edit(f"❌ Upload failed!\n\n**Error:** `{e}`")
+        # 🧹 Clean after 10 min
+        await asyncio.sleep(600)
+        await reply.delete()
+        await sent.delete()
+        os.remove(file_path)
 
-    # 🧹 Auto-clean
-    await asyncio.sleep(600)
-    await reply.delete()
-    await sent.delete()
-    os.remove(file_path)
-
-except Exception as e:
-    await reply.edit(f"❌ Error: {e}")
+    except Exception as e:
+        await reply.edit(f"❌ Error: `{str(e)}`")
 
 def progress_bar(percent):
     full = int(percent // 10)
