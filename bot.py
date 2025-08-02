@@ -223,7 +223,7 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         await reply.edit("📤 Uploading to Telegram...")
         start = time.time()
         sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
-        await asyncio.sleep(60)
+        await asyncio.sleep(600)
         await reply.delete()
         await sent.delete()
         os.remove(file_path)
