@@ -51,7 +51,6 @@ async def help_command(_, msg: Message):
         "`/rename` - Rename next upload\n"
         "`/cancel` - Cancel current session\n"
         "`/status` - Show active upload\n"
-        "`/mode` - Set upload mode\n"
         "`/broadcast` - Owner only\n"
         "`/addusers` - Owner only\n"
         "`/delusers` - Owner only\n"
@@ -91,19 +90,6 @@ async def status_command(_, msg: Message):
         await msg.reply("📊 Status: Download/upload in progress.")
     else:
         await msg.reply("✅ No active tasks now.")
-
-@bot.on_message(filters.command("mode"))
-async def mode_command(_, msg: Message):
-    uid = msg.from_user.id
-    if len(msg.command) < 2:
-        await msg.reply("❌ Usage: `/mode normal` or `/mode fast`")
-        return
-    mode = msg.command[1].lower()
-    if mode in ["normal", "fast"]:
-        user_modes[uid] = mode
-        await msg.reply(f"⚙️ Mode set to: `{mode}`")
-    else:
-        await msg.reply("❌ Invalid mode. Use `normal` or `fast`")
 
 @bot.on_message(filters.command("broadcast"))
 async def broadcast_command(_, msg: Message):
@@ -161,75 +147,80 @@ async def get_users_list(_, msg: Message):
     await msg.reply(format_user_list())
 
 @bot.on_message(filters.text & ~filters.command([
-    "start", "help", "rename", "cancel", "status", "mode",
+    "start", "help", "rename", "cancel", "status", 
     "broadcast", "addusers", "delusers", "getusers"
 ]))
+
 async def handle_url(_, message: Message):
-    uid = message.from_user.id
-    if uid not in get_users():
-        await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
-        return
-    url = message.text.strip()
-    reply = await message.reply("📥 Starting download...")
-    pending_rename[uid] = {"url": url, "msg": message}
-    active_downloads[uid] = True
-    await process_upload(message, url, message)
-    pending_rename.pop(uid, None)
+    uid = message.from_user.id
+    if uid not in get_users():
+        await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
+        return
 
-async def process_upload(message: Message, url: str, user_msg: Message):
-    uid = message.from_user.id
-    reply = await user_msg.reply("📥 Downloading...")
-    try:
-        if url.startswith("magnet:") or url.endswith(".torrent"):
-            file_path, error = download_with_aria2(url)
-        elif url.startswith("http://") or url.startswith("https://"):
-            parsed = urlparse(url)
-            file_name = os.path.basename(parsed.path)
-            file_name = unquote(file_name)[:100]
-            os.makedirs("downloads", exist_ok=True)
-            file_path = f"downloads/{file_name}"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        await reply.edit("❌ Download failed.")
-                        active_downloads.pop(uid, None)
-                        return
-                    with open(file_path, "wb") as f:
-                        while True:
-                            chunk = await resp.content.read(1024 * 1024)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-            error = None
-        else:
-            await reply.edit("❌ Invalid link.")
-            active_downloads.pop(uid, None)
-            return
+    url = message.text.strip()
+    reply = await message.reply("📥 Starting fast download...")
+    active_downloads[uid] = True
 
-        if not file_path or error:
-            await reply.edit(f"❌ Download failed: {error or 'Unknown error'}")
-            active_downloads.pop(uid, None)
-            return
+    try:
+        await process_upload(message, url, reply)
+    finally:
+        active_downloads.pop(uid, None)
 
-        await reply.edit("✍️ Send `/rename filename.ext` within 30s if you want to rename the file...")
-        await asyncio.sleep(30)
 
-        rename = pending_rename.get(uid, {}).get("rename")
-        if rename:
-            new_path = os.path.join("downloads", rename)
-            os.rename(file_path, new_path)
-            file_path = new_path
+async def process_upload(message: Message, url: str, reply: Message):
+    uid = message.from_user.id
+    file_path = None
 
-        await reply.edit("📤 Uploading to Telegram...")
-        start = time.time()
-        sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
-        await asyncio.sleep(600)
-        await reply.delete()
-        await sent.delete()
-        os.remove(file_path)
+    try:
+        # 🌐 If magnet or .torrent
+        if url.startswith("magnet:") or url.endswith(".torrent"):
+            file_path, error = download_with_aria2(url)
+            if error:
+                await reply.edit(f"❌ Aria2 Error: {error}")
+                return
 
-    except Exception as e:
-        await reply.edit(f"❌ Error: {e}")
+        # 🌐 If direct HTTP/HTTPS link
+        elif url.startswith("http://") or url.startswith("https://"):
+            parsed = urlparse(url)
+            file_name = unquote(os.path.basename(parsed.path)) or "file.bin"
+            file_name = file_name[:100]
+            os.makedirs("downloads", exist_ok=True)
+            file_path = f"downloads/{file_name}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        await reply.edit("❌ Direct download failed.")
+                        return
+
+                    with open(file_path, "wb") as f:
+                        while True:
+                            chunk = await resp.content.read(4 * 1024 * 1024)  # 4MB chunks
+                            if not chunk:
+                                break
+                            f.write(chunk)
+
+        else:
+            await reply.edit("❌ Invalid link.")
+            return
+
+        if not os.path.exists(file_path):
+            await reply.edit("❌ File not found after download.")
+            return
+
+        # ✅ File exists – upload to Telegram
+        await reply.edit("📤 Uploading to Telegram...")
+        start = time.time()
+        sent = await message.reply_document(file_path, caption=f"✅ Uploaded in {round(time.time() - start, 2)}s")
+
+        # ⏲️ Sleep 10 min, then clean up
+        await asyncio.sleep(600)
+        await reply.delete()
+        await sent.delete()
+        os.remove(file_path)
+
+    except Exception as e:
+        await reply.edit(f"❌ Error: {e}")
     finally:
         active_downloads.pop(uid, None)
 
