@@ -13,8 +13,7 @@ import shutil
 from urllib.parse import urlparse, unquote
 from utils import sizeof_fmt, sanitize_filename  # helper to format size, sanitize names
 
-
-CHUNK_SIZE = 8 * 1024 * 1024  # 8MB
+CHUNK_SIZE = 1024 * 512  # 512KB
 active_downloads = {}
 
 bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -189,29 +188,35 @@ async def get_users_list(_, msg: Message):
     "broadcast", "addusers", "delusers", "getusers"
 ]))
 
+# === Utility Functions ===
+def sanitize_filename(name):
+    return "".join(c for c in name if c.isalnum() or c in (' ', '.', '_')).rstrip()
+
+def sizeof_fmt(num):
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if num < 1024:
+            return f"{num:.2f} {unit}"
+        num /= 1024
+
+def progress_bar(percent):
+    full = int(percent // 10)
+    empty = 10 - full
+    return "[" + "▰" * full + "▱" * empty + "]"
+
+
+# === MAIN PROCESS FUNCTION ===
 async def process_upload(message: Message, url: str, reply: Message):
-    uid = message.from_user.id
     file_path = None
-
     try:
-        # 🌐 Magnet or Torrent
-        if url.startswith("magnet:") or url.endswith(".torrent"):
-            file_path, error = download_with_aria2(url)
-            if error:
-                await reply.edit(f"❌ Aria2 Error: {error}")
-                return
-
-        # 🌐 Direct Link
-        elif url.startswith("http://") or url.startswith("https://"):
+        # 🌐 Handle Direct Links
+        if url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
             raw_name = unquote(os.path.basename(parsed.path)) or "file.bin"
             file_name = sanitize_filename(raw_name[:100])
             os.makedirs("downloads", exist_ok=True)
             file_path = f"downloads/{file_name}"
 
-            total = 0
             start = time.time()
-
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
@@ -227,7 +232,6 @@ async def process_upload(message: Message, url: str, reply: Message):
                             await f.write(chunk)
                             done += len(chunk)
                             now = time.time()
-
                             if now - last_update > 2:
                                 percent = done / total_size * 100 if total_size else 0
                                 bar = progress_bar(percent)
@@ -242,14 +246,14 @@ async def process_upload(message: Message, url: str, reply: Message):
                                 last_update = now
 
         else:
-            await reply.edit("❌ Invalid URL.")
+            await reply.edit("❌ Invalid URL or unsupported format.")
             return
 
         if not os.path.exists(file_path):
             await reply.edit("❌ File not found after download.")
             return
 
-        # ✅ Upload
+        # ✅ Upload to Telegram
         await reply.edit("📤 Uploading to Telegram...")
         start = time.time()
         file_size = os.path.getsize(file_path)
@@ -259,13 +263,11 @@ async def process_upload(message: Message, url: str, reply: Message):
             percent = current / total * 100 if total else 0
             bar = progress_bar(percent)
             speed = sizeof_fmt(current / (time.time() - start + 1e-6)) + "/s"
-            uploaded = sizeof_fmt(current)
-            total_str = sizeof_fmt(total)
             status = (
                 f"📤 **Uploading:** {percent:.2f}%\n"
                 f"{bar}\n"
                 f"➩ **Speed:** {speed}\n"
-                f"➩ **Done:** {uploaded} / {total_str}"
+                f"➩ **Done:** {sizeof_fmt(current)} / {sizeof_fmt(total)}"
             )
             try:
                 await reply.edit(status)
@@ -275,17 +277,14 @@ async def process_upload(message: Message, url: str, reply: Message):
         sent = await message.reply_document(
             file_path,
             caption=f"✅ `{file_name}`\n📦 {sizeof_fmt(file_size)}",
-            progress=upload_progress,
-            progress_args=(),
+            progress=upload_progress
         )
 
-        # ⏱️ After upload
         upload_time = round(time.time() - start, 2)
         await reply.edit(
             f"✅ Uploaded `{file_name}`\n📦 {sizeof_fmt(file_size)}\n⏱️ In {upload_time}s"
         )
 
-        # 🧹 Clean after 10 min
         await asyncio.sleep(600)
         await reply.delete()
         await sent.delete()
@@ -294,10 +293,18 @@ async def process_upload(message: Message, url: str, reply: Message):
     except Exception as e:
         await reply.edit(f"❌ Error: `{str(e)}`")
 
-def progress_bar(percent):
-    full = int(percent // 10)
-    empty = 10 - full
-    return "[" + "▰" * full + "▱" * empty + "]"
+
+# === COMMAND HANDLER ===
+@bot.on_message(filters.command("upload") & filters.private)
+async def handle_upload(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("❌ Please provide a direct download link.\n\nExample:\n`/upload https://example.com/video.mp4`")
+        return
+
+    url = message.command[1]
+    reply = await message.reply("⏳ Processing...")
+    await process_upload(message, url, reply)
+
 
 print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
