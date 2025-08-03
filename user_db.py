@@ -1,44 +1,51 @@
 import json
-from config import USERS_FILE
-from datetime import datetime
+import os
 
-LOG_FILE = "log.txt"
+DB_FILE = "db.json"
 
-def log_action(action):
-    with open(LOG_FILE, "a") as log:
-        log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {action}\n")
+# 📂 Ensure DB file exists
+def init_db():
+    if not os.path.exists(DB_FILE):
+        with open(DB_FILE, "w") as f:
+            json.dump({"users": []}, f)
 
-def get_users():
-    try:
-        with open(USERS_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return []
+# 📖 Load DB content
+def load_db():
+    init_db()
+    with open(DB_FILE, "r") as f:
+        return json.load(f)
 
-def add_user(user_id, by_owner=False):
-    users = get_users()
-    if user_id not in users and by_owner:
-        users.append(user_id)
-        with open(USERS_FILE, "w") as f:
-            json.dump(users, f)
-        log_action(f"User added: {user_id}")
+# 💾 Save DB content
+def save_db(data):
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
+# ➕ Add new user
+def add_user(user_id):
+    data = load_db()
+    if user_id not in data["users"]:
+        data["users"].append(user_id)
+        save_db(data)
+
+# ➖ Remove user
 def remove_user(user_id):
-    users = get_users()
-    if user_id in users:
-        users.remove(user_id)
-        with open(USERS_FILE, "w") as f:
-            json.dump(users, f)
-        log_action(f"User removed: {user_id}")
+    data = load_db()
+    if user_id in data["users"]:
+        data["users"].remove(user_id)
+        save_db(data)
 
+# ✅ Get all users
+def get_users():
+    data = load_db()
+    return data["users"]
+
+# 🔍 Check if a user exists
+def is_user(user_id):
+    data = load_db()
+    return user_id in data["users"]
+
+# 🧾 Format user list for display
 def format_user_list():
     users = get_users()
-    if not users:
-        return "👥 No users currently allowed."
-    text = "👥 Allowed Users List:\n"
-    for uid in users:
-        text += f"[`{uid}`](tg://user?id={uid})\n"
-    return text
-
-
+    return "\n".join([f"👤 `{uid}`" for uid in users]) if users else "❌ No users found."
     
