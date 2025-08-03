@@ -14,8 +14,9 @@ bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKE
 
 pending_rename = {}
 active_downloads = {}
-user_modes = {}
+user_modes = {}  # ✅ Stores per-user mode ("normal" or "fast")
 
+# 🚀 /start command
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
     if msg.from_user.id == OWNER_ID:
@@ -38,6 +39,7 @@ async def start(_, msg: Message):
         "📜 Use the scroll: `/help` — *the path to knowledge is open to few.*"
     )
 
+# 🧾 Help command
 @bot.on_message(filters.command("help"))
 async def help_command(_, msg: Message):
     await msg.reply(
@@ -61,6 +63,7 @@ async def help_command(_, msg: Message):
         "DM @Madara_Uchiha_lI to unlock the gate."
     )
 
+# ✍️ Rename command
 @bot.on_message(filters.command("rename"))
 async def rename_command(_, msg: Message):
     uid = msg.from_user.id
@@ -76,6 +79,7 @@ async def rename_command(_, msg: Message):
     pending_rename[uid]["rename"] = msg.command[1]
     await msg.reply(f"✅ Filename set to: `{msg.command[1]}`")
 
+# ❌ Cancel session
 @bot.on_message(filters.command("cancel"))
 async def cancel_command(_, msg: Message):
     uid = msg.from_user.id
@@ -85,6 +89,7 @@ async def cancel_command(_, msg: Message):
     else:
         await msg.reply("ℹ️ No session to cancel.")
 
+# 📊 Status
 @bot.on_message(filters.command("status"))
 async def status_command(_, msg: Message):
     uid = msg.from_user.id
@@ -93,6 +98,7 @@ async def status_command(_, msg: Message):
     else:
         await msg.reply("✅ No active tasks now.")
 
+# ⚙️ Upload mode
 @bot.on_message(filters.command("mode"))
 async def mode_command(_, msg: Message):
     uid = msg.from_user.id
@@ -106,6 +112,7 @@ async def mode_command(_, msg: Message):
     else:
         await msg.reply("❌ Invalid mode. Use `normal` or `fast`")
 
+# 📢 Broadcast to all users
 @bot.on_message(filters.command("broadcast"))
 async def broadcast_command(_, msg: Message):
     if msg.from_user.id != OWNER_ID:
@@ -124,6 +131,7 @@ async def broadcast_command(_, msg: Message):
             fail += 1
     await msg.reply(f"📢 Broadcast complete:\n✅ Sent: {success} users\n❌ Failed: {fail}")
 
+# 👥 Add/Remove/Get users
 @bot.on_message(filters.command("addusers"))
 async def add_users_cmd(_, msg: Message):
     if msg.from_user.id != OWNER_ID:
@@ -161,6 +169,7 @@ async def get_users_list(_, msg: Message):
         return
     await msg.reply(format_user_list())
 
+# 🔗 Handle incoming URLs
 @bot.on_message(filters.text & ~filters.command([
     "start", "help", "rename", "cancel", "status", "mode",
     "broadcast", "addusers", "delusers", "getusers"
@@ -177,6 +186,7 @@ async def handle_url(_, message: Message):
     await process_upload(message, url, message)
     pending_rename.pop(uid, None)
 
+# 🔄 Download + Upload logic
 async def process_upload(message: Message, url: str, user_msg: Message):
     uid = message.from_user.id
     reply = await user_msg.reply("📥 Downloading...")
@@ -184,12 +194,12 @@ async def process_upload(message: Message, url: str, user_msg: Message):
     try:
         file_path = None
         error = None
+        mode = user_modes.get(uid, "normal")
+        chunk_size = 10 * 1024 * 1024 if mode == "fast" else 5 * 1024 * 1024
 
-        # Handle magnet/torrent with aria2
         if url.startswith("magnet:") or url.endswith(".torrent"):
             file_path, error = download_with_aria2(url)
 
-        # Direct HTTP/HTTPS
         elif url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
             file_name = unquote(os.path.basename(parsed.path))[:100]
@@ -202,17 +212,9 @@ async def process_upload(message: Message, url: str, user_msg: Message):
                         await reply.edit("❌ Download failed.")
                         active_downloads.pop(uid, None)
                         return
-
-                    total_size = int(resp.headers.get('Content-Length', 0))
-                    downloaded = 0
-                    chunk_size = 5 * 1024 * 1024  # 5 MB chunks
-
                     async with aiofiles.open(file_path, "wb") as f:
                         async for chunk in resp.content.iter_chunked(chunk_size):
                             await f.write(chunk)
-                            downloaded += len(chunk)
-
-            error = None
 
         else:
             await reply.edit("❌ Invalid link.")
@@ -224,8 +226,8 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             active_downloads.pop(uid, None)
             return
 
-        await reply.edit("✍️ Send `/rename filename.ext` within 15s if you want to rename the file...")
-        await asyncio.sleep(15)
+        await reply.edit("✍️ Send `/rename filename.ext` within 30s if you want to rename the file...")
+        await asyncio.sleep(30)
 
         rename = pending_rename.get(uid, {}).get("rename")
         if rename:
@@ -235,9 +237,13 @@ async def process_upload(message: Message, url: str, user_msg: Message):
 
         await reply.edit("📤 Uploading to Telegram...")
         start = time.time()
-        sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
+        try:
+            sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
+        except Exception as e:
+            await reply.edit(f"❌ Upload failed: {e}")
+            active_downloads.pop(uid, None)
+            return
 
-        # Cleanup
         await asyncio.sleep(300)
         await reply.delete()
         await sent.delete()
@@ -247,7 +253,6 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         await reply.edit(f"❌ Error: {e}")
     finally:
         active_downloads.pop(uid, None)
-
 
 print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
