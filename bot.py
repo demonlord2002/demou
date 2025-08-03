@@ -3,6 +3,7 @@ from pyrogram.types import Message
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from user_db import add_user, get_users, remove_user, format_user_list
 from helper import download_with_aria2
+from pyrogram.errors import FloodWait
 import os
 import time
 import math
@@ -204,14 +205,25 @@ async def edit_progress_msg(msg, action, percent, speed, done, total, eta):
         pass
 
 # 🚀 Main Upload Logic
+async def safe_send(func, *args, **kwargs):
+    while True:
+        try:
+            return await func(*args, **kwargs)
+        except FloodWait as e:
+            print(f"[FLOOD_WAIT] Sleeping for {e.value} seconds...")
+            await asyncio.sleep(e.value)
+        except Exception as e:
+            print(f"[ERROR] {e}")
+            return None
+
 async def process_upload(message: Message, url: str, user_msg: Message):
     uid = message.from_user.id
-    reply = await user_msg.reply("📥 Connecting to server...")
+    reply = await safe_send(user_msg.reply, "📥 Connecting to server...")
 
     try:
         parsed = urlparse(url)
         file_name = unquote(os.path.basename(parsed.path)) or "file.mkv"
-        if not file_name.endswith((".mp4", ".mkv")):
+        if not file_name.endswith((".mp4", ".mkv", ".mov", ".avi")):
             file_name += ".mkv"
 
         os.makedirs("downloads", exist_ok=True)
@@ -220,13 +232,13 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
-                    await reply.edit("❌ Download failed. Invalid link.")
+                    await safe_send(reply.edit, "❌ Download failed. Invalid link.")
                     return
 
                 total = int(resp.headers.get("Content-Length", 0))
                 done = 0
                 start = time.time()
-                last_update = 0
+                last_percent = 0
 
                 with open(file_path, "wb") as f:
                     while True:
@@ -236,35 +248,39 @@ async def process_upload(message: Message, url: str, user_msg: Message):
                         f.write(chunk)
                         done += len(chunk)
 
-                        now = time.time()
-                        if now - last_update > 1:
-                            speed = done / (now - start) / 1024 / 1024
-                            percent = (done / total) * 100 if total else 0
+                        percent = (done / total) * 100 if total else 0
+                        if percent - last_percent >= 5 or percent == 100:
+                            speed = done / (time.time() - start) / 1024 / 1024
                             eta = round((total - done) / (speed * 1024 * 1024)) if speed > 0 else "∞"
                             await edit_progress_msg(reply, "DOWNLOAD", percent, speed, done, total, eta)
-                            last_update = now
+                            last_percent = percent
 
-        await reply.edit("📤 Uploading to Telegram...")
+        await safe_send(reply.edit, "📤 Uploading to Telegram...")
 
-        # Upload Progress
-        sent_msg = await message.reply("⚙️ Starting upload...")
-        start = time.time()
+        sent_msg = await safe_send(message.reply, "⚙️ Starting upload...")
+        start_upload = time.time()
 
         async def progress(current, total):
             percent = (current / total) * 100
-            speed = current / (time.time() - start) / 1024 / 1024
+            speed = current / (time.time() - start_upload) / 1024 / 1024
             eta = round((total - current) / (speed * 1024 * 1024)) if speed > 0 else "∞"
-            await edit_progress_msg(sent_msg, "𝖴𝗉𝗅𝗈𝖺𝖽", percent, speed, current, total, eta)
+            await edit_progress_msg(sent_msg, "UPLOAD", percent, speed, current, total, eta)
 
-        await message.reply_document(file_path, caption="✅ Upload completed", progress=progress)
+        await safe_send(
+            message.reply_document,
+            file_path,
+            caption="✅ Upload completed",
+            progress=progress
+        )
 
-        await asyncio.sleep(300)
-        await reply.delete()
-        await sent_msg.delete()
+        await asyncio.sleep(120)
+        await safe_send(reply.delete)
+        await safe_send(sent_msg.delete)
         os.remove(file_path)
 
     except Exception as e:
-        await reply.edit(f"❌ Error: {str(e)}")
+        print(f"⚠️ Upload Error: {e}")
+        await safe_send(reply.edit, f"❌ Error: {str(e)}")
 
     finally:
         active_downloads.pop(uid, None)
