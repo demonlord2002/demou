@@ -3,6 +3,7 @@ from pyrogram.types import Message
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from user_db import add_user, get_users, remove_user, format_user_list
 from helper import download_with_aria2
+from pyrogram.enums import ChatAction
 import os
 import time
 import aiohttp
@@ -235,8 +236,15 @@ async def process_upload(message: Message, url: str, user_msg: Message):
 
         await reply.edit("📤 Uploading to Telegram...")
         start = time.time()
-        sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
+        await bot.send_chat_action(message.chat.id, ChatAction.UPLOAD_DOCUMENT)
 
+        sent = await bot.send_document(
+            chat_id=uid,
+            document=file_path,
+            caption=f"✅ Done in {round(time.time() - start, 2)}s",
+            force_document=True
+        )
+        
         # Cleanup
         await asyncio.sleep(300)
         await reply.delete()
