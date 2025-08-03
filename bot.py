@@ -205,25 +205,30 @@ async def edit_progress_msg(msg, action, percent, speed, done, total, eta):
         pass
 
 # 🚀 Main Upload Logic
+# ✅ Safe send/edit wrapper
 async def safe_send(func, *args, **kwargs):
     while True:
         try:
             return await func(*args, **kwargs)
         except FloodWait as e:
-            print(f"[FLOOD_WAIT] Sleeping for {e.value} seconds...")
-            await asyncio.sleep(e.value)
+            wait = min(e.value, 600)  # Never wait more than 10 mins
+            print(f"[FLOOD_WAIT] Sleeping for {wait} seconds...")
+            await asyncio.sleep(wait)
         except Exception as e:
-            print(f"[ERROR] {e}")
+            print(f"[safe_send ERROR] {e}")
             return None
 
+# ✅ Upload main logic
 async def process_upload(message: Message, url: str, user_msg: Message):
     uid = message.from_user.id
+    active_downloads[uid] = True
+
     reply = await safe_send(user_msg.reply, "📥 Connecting to server...")
 
     try:
         parsed = urlparse(url)
         file_name = unquote(os.path.basename(parsed.path)) or "file.mkv"
-        if not file_name.endswith((".mp4", ".mkv", ".mov", ".avi")):
+        if not file_name.endswith((".mp4", ".mkv", ".mov", ".avi", ".webm")):
             file_name += ".mkv"
 
         os.makedirs("downloads", exist_ok=True)
@@ -249,7 +254,7 @@ async def process_upload(message: Message, url: str, user_msg: Message):
                         done += len(chunk)
 
                         percent = (done / total) * 100 if total else 0
-                        if percent - last_percent >= 5 or percent == 100:
+                        if percent - last_percent >= 10 or percent >= 100:
                             speed = done / (time.time() - start) / 1024 / 1024
                             eta = round((total - done) / (speed * 1024 * 1024)) if speed > 0 else "∞"
                             await edit_progress_msg(reply, "DOWNLOAD", percent, speed, done, total, eta)
@@ -273,13 +278,15 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             progress=progress
         )
 
-        await asyncio.sleep(120)
+        # 🧹 Cleanup
+        await asyncio.sleep(60)
         await safe_send(reply.delete)
         await safe_send(sent_msg.delete)
-        os.remove(file_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
     except Exception as e:
-        print(f"⚠️ Upload Error: {e}")
+        print(f"[Upload ERROR] {e}")
         await safe_send(reply.edit, f"❌ Error: {str(e)}")
 
     finally:
