@@ -9,14 +9,15 @@ import aiohttp
 import aiofiles
 import asyncio
 from urllib.parse import urlparse, unquote
+import uuid
 
 bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 pending_rename = {}
 active_downloads = {}
-user_modes = {}  # ✅ Stores per-user mode ("normal" or "fast")
+user_modes = {}
+user_last_request = {}
 
-# 🚀 /start command
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
     if msg.from_user.id == OWNER_ID:
@@ -39,7 +40,6 @@ async def start(_, msg: Message):
         "📜 Use the scroll: `/help` — *the path to knowledge is open to few.*"
     )
 
-# 🧾 Help command
 @bot.on_message(filters.command("help"))
 async def help_command(_, msg: Message):
     await msg.reply(
@@ -63,23 +63,18 @@ async def help_command(_, msg: Message):
         "DM @Madara_Uchiha_lI to unlock the gate."
     )
 
-# ✍️ Rename command
 @bot.on_message(filters.command("rename"))
 async def rename_command(_, msg: Message):
     uid = msg.from_user.id
     if uid not in get_users():
-        await msg.reply("❌ Access denied.")
-        return
+        return await msg.reply("❌ Access denied.")
     if len(msg.command) < 2:
-        await msg.reply("❌ Usage: `/rename newfilename.ext`")
-        return
+        return await msg.reply("❌ Usage: `/rename newfilename.ext`")
     if uid not in pending_rename:
-        await msg.reply("❗ No URL sent yet. Send a link first.")
-        return
+        return await msg.reply("❗ No URL sent yet. Send a link first.")
     pending_rename[uid]["rename"] = msg.command[1]
     await msg.reply(f"✅ Filename set to: `{msg.command[1]}`")
 
-# ❌ Cancel session
 @bot.on_message(filters.command("cancel"))
 async def cancel_command(_, msg: Message):
     uid = msg.from_user.id
@@ -89,22 +84,16 @@ async def cancel_command(_, msg: Message):
     else:
         await msg.reply("ℹ️ No session to cancel.")
 
-# 📊 Status
 @bot.on_message(filters.command("status"))
 async def status_command(_, msg: Message):
     uid = msg.from_user.id
-    if uid in active_downloads:
-        await msg.reply("📊 Status: Download/upload in progress.")
-    else:
-        await msg.reply("✅ No active tasks now.")
+    await msg.reply("📊 Status: Download/upload in progress." if uid in active_downloads else "✅ No active tasks now.")
 
-# ⚙️ Upload mode
 @bot.on_message(filters.command("mode"))
 async def mode_command(_, msg: Message):
     uid = msg.from_user.id
     if len(msg.command) < 2:
-        await msg.reply("❌ Usage: `/mode normal` or `/mode fast`")
-        return
+        return await msg.reply("❌ Usage: `/mode normal` or `/mode fast`")
     mode = msg.command[1].lower()
     if mode in ["normal", "fast"]:
         user_modes[uid] = mode
@@ -112,34 +101,29 @@ async def mode_command(_, msg: Message):
     else:
         await msg.reply("❌ Invalid mode. Use `normal` or `fast`")
 
-# 📢 Broadcast to all users
 @bot.on_message(filters.command("broadcast"))
 async def broadcast_command(_, msg: Message):
     if msg.from_user.id != OWNER_ID:
-        await msg.reply("❌ Only the bot owner can use broadcast.")
-        return
+        return await msg.reply("❌ Only the bot owner can use broadcast.")
     if len(msg.command) < 2:
-        await msg.reply("❗ Usage: `/broadcast your message here`")
-        return
+        return await msg.reply("❗ Usage: `/broadcast your message here`")
     text = " ".join(msg.command[1:])
     success, fail = 0, 0
     for uid in get_users():
         try:
             await bot.send_message(uid, text)
             success += 1
-        except:
+        except Exception as e:
+            print(f"[Broadcast error] {uid}: {e}")
             fail += 1
     await msg.reply(f"📢 Broadcast complete:\n✅ Sent: {success} users\n❌ Failed: {fail}")
 
-# 👥 Add/Remove/Get users
 @bot.on_message(filters.command("addusers"))
 async def add_users_cmd(_, msg: Message):
     if msg.from_user.id != OWNER_ID:
-        await msg.reply("❌ You are not allowed to add users.")
-        return
+        return await msg.reply("❌ You are not allowed to add users.")
     if len(msg.command) < 2:
-        await msg.reply("❗ Usage: `/addusers 123456789`")
-        return
+        return await msg.reply("❗ Usage: `/addusers 123456789`")
     try:
         uid = int(msg.command[1])
         add_user(uid, by_owner=True)
@@ -150,11 +134,9 @@ async def add_users_cmd(_, msg: Message):
 @bot.on_message(filters.command("delusers"))
 async def del_users_cmd(_, msg: Message):
     if msg.from_user.id != OWNER_ID:
-        await msg.reply("❌ You are not allowed to delete users.")
-        return
+        return await msg.reply("❌ You are not allowed to delete users.")
     if len(msg.command) < 2:
-        await msg.reply("❗ Usage: `/delusers 123456789`")
-        return
+        return await msg.reply("❗ Usage: `/delusers 123456789`")
     try:
         uid = int(msg.command[1])
         remove_user(uid)
@@ -165,20 +147,19 @@ async def del_users_cmd(_, msg: Message):
 @bot.on_message(filters.command("getusers"))
 async def get_users_list(_, msg: Message):
     if msg.from_user.id != OWNER_ID:
-        await msg.reply("❌ Only the owner can view the user list.")
-        return
+        return await msg.reply("❌ Only the owner can view the user list.")
     await msg.reply(format_user_list())
 
-# 🔗 Handle incoming URLs
-@bot.on_message(filters.text & ~filters.command([
-    "start", "help", "rename", "cancel", "status", "mode",
-    "broadcast", "addusers", "delusers", "getusers"
-]))
+@bot.on_message(filters.private & ~filters.command(["start", "help", "rename", "cancel", "status", "mode", "broadcast", "addusers", "delusers", "getusers"]))
 async def handle_url(_, message: Message):
     uid = message.from_user.id
     if uid not in get_users():
-        await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
-        return
+        return await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
+
+    if uid in user_last_request and time.time() - user_last_request[uid] < 20:
+        return await message.reply("⏳ Please wait a few seconds before sending another request.")
+    user_last_request[uid] = time.time()
+
     url = message.text.strip()
     reply = await message.reply("📥 Starting download...")
     pending_rename[uid] = {"url": url, "msg": message}
@@ -186,16 +167,15 @@ async def handle_url(_, message: Message):
     await process_upload(message, url, message)
     pending_rename.pop(uid, None)
 
-# 🔄 Download + Upload logic
 async def process_upload(message: Message, url: str, user_msg: Message):
     uid = message.from_user.id
     reply = await user_msg.reply("📥 Downloading...")
-
     try:
         file_path = None
         error = None
         mode = user_modes.get(uid, "normal")
         chunk_size = 10 * 1024 * 1024 if mode == "fast" else 5 * 1024 * 1024
+        timeout = aiohttp.ClientTimeout(total=300)
 
         if url.startswith("magnet:") or url.endswith(".torrent"):
             file_path, error = download_with_aria2(url)
@@ -204,9 +184,9 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             parsed = urlparse(url)
             file_name = unquote(os.path.basename(parsed.path))[:100]
             os.makedirs("downloads", exist_ok=True)
-            file_path = f"downloads/{file_name}"
+            file_path = f"downloads/{uuid.uuid4().hex}_{file_name}"
 
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
                         await reply.edit("❌ Download failed.")
@@ -215,7 +195,6 @@ async def process_upload(message: Message, url: str, user_msg: Message):
                     async with aiofiles.open(file_path, "wb") as f:
                         async for chunk in resp.content.iter_chunked(chunk_size):
                             await f.write(chunk)
-
         else:
             await reply.edit("❌ Invalid link.")
             active_downloads.pop(uid, None)
@@ -226,8 +205,17 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             active_downloads.pop(uid, None)
             return
 
+        if os.path.getsize(file_path) > 2 * 1024 * 1024 * 1024:
+            await reply.edit("❌ File is too large (2GB limit for bots).")
+            os.remove(file_path)
+            active_downloads.pop(uid, None)
+            return
+
         await reply.edit("✍️ Send `/rename filename.ext` within 30s if you want to rename the file...")
-        await asyncio.sleep(30)
+        for _ in range(30):
+            await asyncio.sleep(1)
+            if uid in pending_rename and "rename" in pending_rename[uid]:
+                break
 
         rename = pending_rename.get(uid, {}).get("rename")
         if rename:
@@ -241,6 +229,8 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
         except Exception as e:
             await reply.edit(f"❌ Upload failed: {e}")
+            if os.path.exists(file_path):
+                os.remove(file_path)
             active_downloads.pop(uid, None)
             return
 
@@ -251,6 +241,8 @@ async def process_upload(message: Message, url: str, user_msg: Message):
 
     except Exception as e:
         await reply.edit(f"❌ Error: {e}")
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
     finally:
         active_downloads.pop(uid, None)
 
