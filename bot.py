@@ -5,15 +5,14 @@ from user_db import add_user, get_users, remove_user, format_user_list
 from helper import download_with_aria2
 import os
 import time
+import math
 import aiohttp
 import asyncio
 from urllib.parse import urlparse, unquote
 
 bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-pending_rename = {}
 active_downloads = {}
-user_modes = {}
 
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
@@ -164,74 +163,112 @@ async def get_users_list(_, msg: Message):
     "start", "help", "rename", "cancel", "status", "mode",
     "broadcast", "addusers", "delusers", "getusers"
 ]))
+# 💬 URL Handler
 async def handle_url(_, message: Message):
-    uid = message.from_user.id
-    if uid not in get_users():
-        await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
-        return
-    url = message.text.strip()
-    reply = await message.reply("📥 Starting download...")
-    pending_rename[uid] = {"url": url, "msg": message}
-    active_downloads[uid] = True
-    await process_upload(message, url, message)
-    pending_rename.pop(uid, None)
+    uid = message.from_user.id
+    if uid not in get_users():
+        await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
+        return
+    url = message.text.strip()
+    reply = await message.reply("📥 Starting download...")
+    active_downloads[uid] = True
+    await process_upload(message, url, message)
 
+# 🔥 Progress Bar & Status Formatter
+def sizeof_fmt(num, suffix="B"):
+    for unit in ["", "K", "M", "G", "T", "P"]:
+        if abs(num) < 1024.0:
+            return f"{num:.2f} {unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.2f} P{suffix}"
+
+async def progress_bar(percent):
+    blocks = math.floor(percent * 10 / 100)
+    return '▰' * blocks + '▱' * (10 - blocks)
+
+async def edit_progress_msg(msg, action, percent, speed, done, total, eta):
+    bar = await progress_bar(percent)
+    text = f"""
+{action} 𝖲𝗍𝖺𝗍𝗎𝗌: {percent:.2f}%
+
+[{bar}]
+
+➩ Speed: {speed:.2f} MB/sec
+➩ Done: {sizeof_fmt(done)}
+➩ Size: {sizeof_fmt(total)}
+➩ Time Left: {eta} sec
+""".strip()
+    try:
+        await msg.edit(text)
+    except:
+        pass
+
+# 🚀 Main Upload Logic
 async def process_upload(message: Message, url: str, user_msg: Message):
-    uid = message.from_user.id
-    reply = await user_msg.reply("📥 Downloading...")
-    try:
-        if url.startswith("magnet:") or url.endswith(".torrent"):
-            file_path, error = download_with_aria2(url)
-        elif url.startswith("http://") or url.startswith("https://"):
-            parsed = urlparse(url)
-            file_name = os.path.basename(parsed.path)
-            file_name = unquote(file_name)[:100]
-            os.makedirs("downloads", exist_ok=True)
-            file_path = f"downloads/{file_name}"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        await reply.edit("❌ Download failed.")
-                        active_downloads.pop(uid, None)
-                        return
-                    with open(file_path, "wb") as f:
-                        while True:
-                            chunk = await resp.content.read(1024 * 1024)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-            error = None
-        else:
-            await reply.edit("❌ Invalid link.")
-            active_downloads.pop(uid, None)
-            return
+    uid = message.from_user.id
+    reply = await user_msg.reply("📥 Connecting to server...")
 
-        if not file_path or error:
-            await reply.edit(f"❌ Download failed: {error or 'Unknown error'}")
-            active_downloads.pop(uid, None)
-            return
+    try:
+        parsed = urlparse(url)
+        file_name = unquote(os.path.basename(parsed.path)) or "file.mkv"
+        if not file_name.endswith((".mp4", ".mkv")):
+            file_name += ".mkv"
 
-        await reply.edit("✍️ Send `/rename filename.ext` within 30s if you want to rename the file...")
-        await asyncio.sleep(30)
+        os.makedirs("downloads", exist_ok=True)
+        file_path = f"downloads/{file_name}"
 
-        rename = pending_rename.get(uid, {}).get("rename")
-        if rename:
-            new_path = os.path.join("downloads", rename)
-            os.rename(file_path, new_path)
-            file_path = new_path
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    await reply.edit("❌ Download failed. Invalid link.")
+                    return
 
-        await reply.edit("📤 Uploading to Telegram...")
-        start = time.time()
-        sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
-        await asyncio.sleep(600)
-        await reply.delete()
-        await sent.delete()
-        os.remove(file_path)
+                total = int(resp.headers.get("Content-Length", 0))
+                done = 0
+                start = time.time()
+                last_update = 0
 
-    except Exception as e:
-        await reply.edit(f"❌ Error: {e}")
-    finally:
-        active_downloads.pop(uid, None)
+                with open(file_path, "wb") as f:
+                    while True:
+                        chunk = await resp.content.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        done += len(chunk)
+
+                        now = time.time()
+                        if now - last_update > 1:
+                            speed = done / (now - start) / 1024 / 1024
+                            percent = (done / total) * 100 if total else 0
+                            eta = round((total - done) / (speed * 1024 * 1024)) if speed > 0 else "∞"
+                            await edit_progress_msg(reply, "DOWNLOAD", percent, speed, done, total, eta)
+                            last_update = now
+
+        await reply.edit("📤 Uploading to Telegram...")
+
+        # Upload Progress
+        sent_msg = await message.reply("⚙️ Starting upload...")
+        start = time.time()
+
+        async def progress(current, total):
+            percent = (current / total) * 100
+            speed = current / (time.time() - start) / 1024 / 1024
+            eta = round((total - current) / (speed * 1024 * 1024)) if speed > 0 else "∞"
+            await edit_progress_msg(sent_msg, "𝖴𝗉𝗅𝗈𝖺𝖽", percent, speed, current, total, eta)
+
+        await message.reply_document(file_path, caption="✅ Upload completed", progress=progress)
+
+        await asyncio.sleep(300)
+        await reply.delete()
+        await sent_msg.delete()
+        os.remove(file_path)
+
+    except Exception as e:
+        await reply.edit(f"❌ Error: {str(e)}")
+
+    finally:
+        active_downloads.pop(uid, None)
+
 
 print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
