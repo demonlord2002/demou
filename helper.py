@@ -2,44 +2,55 @@ import aria2p
 import os
 import time
 
-# Connect to running aria2c RPC daemon
+# Connect to running aria2c RPC daemon (ensure aria2c is started with --enable-rpc)
 aria2 = aria2p.API(
     aria2p.Client(
         host="http://localhost",
         port=6800,
-        secret="madara123"  # your aria2 secret
+        secret="madara123"
     )
 )
 
-# 📦 Format size to human-readable
+# 📦 Convert bytes to human-readable format
 def format_bytes(size):
-    power = 2**10
-    n = 0
+    power = 1024
     units = ['B', 'KB', 'MB', 'GB', 'TB']
-    while size >= power and n < len(units) - 1:
+    for unit in units:
+        if size < power:
+            return f"{size:.2f} {unit}"
         size /= power
-        n += 1
-    return f"{size:.2f} {units[n]}"
+    return f"{size:.2f} TB"
 
-# 🚀 Download using aria2 (magnet or torrent)
+# 🚀 Main download logic using aria2
 def download_with_aria2(url):
     try:
         start_time = time.perf_counter()
-        download = aria2.add_uris([url])
-        download.wait_for_completion()
+
+        # Add URL to aria2 queue
+        download = aria2.add_uris([url], options={
+            "max-connection-per-server": "16",  # 🚀 Increase parallel connections
+            "split": "16",
+            "min-split-size": "1M",
+            "max-download-limit": "0",  # No speed limit
+            "dir": "downloads"  # Store in downloads/
+        })
+
+        # Wait for the download to complete
+        download.wait_for_completion(timeout=1800)  # 30 min max
 
         if not download.is_complete:
-            return None, "❌ Download failed or incomplete."
+            return None, "❌ Download failed or timed out."
 
+        # Filter valid files
         valid_files = []
         video_files = []
 
-        for f in download.files:
-            path = f.path
+        for file in download.files:
+            path = file.path
             if not os.path.exists(path):
                 continue
 
-            # Sanitize filename
+            # Sanitize name
             safe_name = "".join(c if c.isalnum() or c in "-_.()" else "_" for c in os.path.basename(path))
             safe_path = os.path.join(os.path.dirname(path), safe_name)
             if path != safe_path:
@@ -49,21 +60,21 @@ def download_with_aria2(url):
             size = os.path.getsize(path)
             ext = os.path.splitext(path)[1].lower()
 
-            if ext in [".mp4", ".mkv"] and size > 500 * 1024:
+            if ext in [".mp4", ".mkv", ".webm"] and size > 500 * 1024:
                 video_files.append((path, size))
             elif size > 100 * 1024:
                 valid_files.append((path, size))
 
-        # Select best file
+        # Select the largest usable file
         if video_files:
             best_file = max(video_files, key=lambda x: x[1])
         elif valid_files:
             best_file = max(valid_files, key=lambda x: x[1])
         else:
-            return None, "❌ No valid downloadable file found."
+            return None, "❌ No valid files found to upload."
 
         end_time = time.perf_counter()
-        duration = max(end_time - start_time, 0.01)
+        duration = max(end_time - start_time, 1)
 
         size_str = format_bytes(best_file[1])
         speed = format_bytes(best_file[1] / duration) + "/s"
