@@ -235,21 +235,20 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             file_path = new_path
 
         await reply.edit("📤 Uploading to Telegram...")
-        start = time.time()
         await bot.send_chat_action(message.chat.id, ChatAction.UPLOAD_DOCUMENT)
 
-        sent = await bot.send_document(
-            chat_id=uid,
-            document=file_path,
-            caption=f"✅ Done in {round(time.time() - start, 2)}s",
-            force_document=True
-        )
-        
-        # Cleanup
-        await asyncio.sleep(300)
-        await reply.delete()
-        await sent.delete()
-        os.remove(file_path)
+start = time.time()
+sent = await bot.send_document(
+    chat_id=uid,
+    document=file_path,
+    caption=f"✅ Done in {round(time.time() - start, 2)}s",
+    force_document=True
+)
+
+# ✅ Cleanup immediately after upload
+os.remove(file_path)
+await reply.delete()
+await sent.delete()
 
     except Exception as e:
         await reply.edit(f"❌ Error: {e}")
