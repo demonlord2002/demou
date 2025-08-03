@@ -6,6 +6,7 @@ from helper import download_with_aria2
 import os
 import time
 import aiohttp
+import aiofiles
 import asyncio
 from urllib.parse import urlparse, unquote
 
@@ -179,28 +180,40 @@ async def handle_url(_, message: Message):
 async def process_upload(message: Message, url: str, user_msg: Message):
     uid = message.from_user.id
     reply = await user_msg.reply("📥 Downloading...")
+
     try:
+        file_path = None
+        error = None
+
+        # Handle magnet/torrent with aria2
         if url.startswith("magnet:") or url.endswith(".torrent"):
             file_path, error = download_with_aria2(url)
+
+        # Direct HTTP/HTTPS
         elif url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
-            file_name = os.path.basename(parsed.path)
-            file_name = unquote(file_name)[:100]
+            file_name = unquote(os.path.basename(parsed.path))[:100]
             os.makedirs("downloads", exist_ok=True)
             file_path = f"downloads/{file_name}"
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
                         await reply.edit("❌ Download failed.")
                         active_downloads.pop(uid, None)
                         return
-                    with open(file_path, "wb") as f:
-                        while True:
-                            chunk = await resp.content.read(1024 * 1024)
-                            if not chunk:
-                                break
-                            f.write(chunk)
+
+                    total_size = int(resp.headers.get('Content-Length', 0))
+                    downloaded = 0
+                    chunk_size = 5 * 1024 * 1024  # 5 MB chunks
+
+                    async with aiofiles.open(file_path, "wb") as f:
+                        async for chunk in resp.content.iter_chunked(chunk_size):
+                            await f.write(chunk)
+                            downloaded += len(chunk)
+
             error = None
+
         else:
             await reply.edit("❌ Invalid link.")
             active_downloads.pop(uid, None)
@@ -211,8 +224,8 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             active_downloads.pop(uid, None)
             return
 
-        await reply.edit("✍️ Send `/rename filename.ext` within 30s if you want to rename the file...")
-        await asyncio.sleep(30)
+        await reply.edit("✍️ Send `/rename filename.ext` within 15s if you want to rename the file...")
+        await asyncio.sleep(15)
 
         rename = pending_rename.get(uid, {}).get("rename")
         if rename:
@@ -223,7 +236,9 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         await reply.edit("📤 Uploading to Telegram...")
         start = time.time()
         sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
-        await asyncio.sleep(600)
+
+        # Cleanup
+        await asyncio.sleep(300)
         await reply.delete()
         await sent.delete()
         os.remove(file_path)
@@ -232,6 +247,7 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         await reply.edit(f"❌ Error: {e}")
     finally:
         active_downloads.pop(uid, None)
+
 
 print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
