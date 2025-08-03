@@ -245,10 +245,10 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             force_document=True
         )
 
-       # ✅ Cleanup immediately after upload
-       os.remove(file_path)
-       await reply.delete()
-       await sent.delete()
+        ✅ Cleanup immediately after upload
+        os.remove(file_path)
+        await reply.delete()
+        await sent.delete()
 
     except Exception as e:
         await reply.edit(f"❌ Error: {e}")
