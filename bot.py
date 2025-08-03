@@ -244,7 +244,8 @@ async def process_upload(message: Message, url: str, user_msg: Message):
             caption=f"✅ Done in {round(time.time() - start, 2)}s",
             force_document=True
         )
-
+# ✅ Small safe delay (10s) to ensure Telegram has fully received the file
+        await asyncio.sleep(10)
        # ✅ Cleanup immediately after upload
         os.remove(file_path)
         await reply.delete()
