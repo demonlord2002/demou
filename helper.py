@@ -2,17 +2,17 @@ import aria2p
 import os
 import time
 
-# Connect to aria2c with RPC secret
+# Connect to running aria2c RPC daemon
 aria2 = aria2p.API(
     aria2p.Client(
         host="http://localhost",
         port=6800,
-        secret="madara123"
+        secret="madara123"  # your aria2 secret
     )
 )
 
+# 📦 Format size to human-readable
 def format_bytes(size):
-    """Convert bytes to human-readable format"""
     power = 2**10
     n = 0
     units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -21,12 +21,11 @@ def format_bytes(size):
         n += 1
     return f"{size:.2f} {units[n]}"
 
+# 🚀 Download using aria2 (magnet or torrent)
 def download_with_aria2(url):
     try:
         start_time = time.perf_counter()
         download = aria2.add_uris([url])
-
-        # Wait for download to complete
         download.wait_for_completion()
 
         if not download.is_complete:
@@ -55,7 +54,7 @@ def download_with_aria2(url):
             elif size > 100 * 1024:
                 valid_files.append((path, size))
 
-        # Choose the best file
+        # Select best file
         if video_files:
             best_file = max(video_files, key=lambda x: x[1])
         elif valid_files:
