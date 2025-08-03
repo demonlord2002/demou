@@ -1,10 +1,9 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message
-from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
-from user_db import add_user, get_users, remove_user, format_user_list
-from helper import download_with_aria2
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from user_db import add_user, is_user
+from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
+from user_db import add_user, get_users, remove_user, format_user_list, is_user
+from helper import download_with_aria2
+
 import os
 import time
 import aiohttp
@@ -12,6 +11,7 @@ import aiofiles
 import asyncio
 from urllib.parse import urlparse, unquote
 import uuid
+import re
 
 bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -20,12 +20,16 @@ active_downloads = {}
 user_modes = {}
 user_last_request = {}
 
+def sanitize_filename(name):
+    return re.sub(r"[^\w\-_. ]", "_", name)
+
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
-    if msg.from_user.id == OWNER_ID:
-        add_user(msg.from_user.id, by_owner=True)
+    uid = msg.from_user.id
+    if uid == OWNER_ID:
+        add_user(uid, by_owner=True)
 
-    if msg.from_user.id not in get_users():
+    if uid not in get_users():
         await msg.reply(
             "❌ You dare challenge Madara Uchiha's forbidden uploader?\n\n"
             "⚠️ This bot is sealed for chosen users only.\n"
@@ -74,14 +78,14 @@ async def rename_command(_, msg: Message):
         return await msg.reply("❌ Usage: `/rename newfilename.ext`")
     if uid not in pending_rename:
         return await msg.reply("❗ No URL sent yet. Send a link first.")
-    pending_rename[uid]["rename"] = msg.command[1]
-    await msg.reply(f"✅ Filename set to: `{msg.command[1]}`")
+    safe_name = sanitize_filename(msg.command[1])
+    pending_rename[uid]["rename"] = safe_name
+    await msg.reply(f"✅ Filename set to: `{safe_name}`")
 
 @bot.on_message(filters.command("cancel"))
 async def cancel_command(_, msg: Message):
     uid = msg.from_user.id
-    if uid in pending_rename:
-        pending_rename.pop(uid)
+    if pending_rename.pop(uid, None):
         await msg.reply("🛑 Cancelled your request.")
     else:
         await msg.reply("ℹ️ No session to cancel.")
@@ -152,12 +156,13 @@ async def get_users_list(_, msg: Message):
         return await msg.reply("❌ Only the owner can view the user list.")
     await msg.reply(format_user_list())
 
-@bot.on_message(filters.private & ~filters.command(["start", "help", "rename", "cancel", "status", "mode", "broadcast", "addusers", "delusers", "getusers"]))
+@bot.on_message(filters.private & ~filters.command([
+    "start", "help", "rename", "cancel", "status", "mode", "broadcast", "addusers", "delusers", "getusers"
+]))
 async def handle_url(_, message: Message):
     uid = message.from_user.id
     if uid not in get_users():
         return await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
-
     if uid in user_last_request and time.time() - user_last_request[uid] < 20:
         return await message.reply("⏳ Please wait a few seconds before sending another request.")
     user_last_request[uid] = time.time()
@@ -172,16 +177,14 @@ async def handle_url(_, message: Message):
 async def process_upload(message: Message, url: str, user_msg: Message):
     uid = message.from_user.id
     reply = await user_msg.reply("📥 Downloading...")
+    file_path = None
     try:
-        file_path = None
-        error = None
         mode = user_modes.get(uid, "normal")
         chunk_size = 10 * 1024 * 1024 if mode == "fast" else 5 * 1024 * 1024
         timeout = aiohttp.ClientTimeout(total=300)
 
         if url.startswith("magnet:") or url.endswith(".torrent"):
             file_path, error = download_with_aria2(url)
-
         elif url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
             file_name = unquote(os.path.basename(parsed.path))[:100]
@@ -192,28 +195,24 @@ async def process_upload(message: Message, url: str, user_msg: Message):
                 async with session.get(url) as resp:
                     if resp.status != 200:
                         await reply.edit("❌ Download failed.")
-                        active_downloads.pop(uid, None)
                         return
                     async with aiofiles.open(file_path, "wb") as f:
                         async for chunk in resp.content.iter_chunked(chunk_size):
                             await f.write(chunk)
         else:
             await reply.edit("❌ Invalid link.")
-            active_downloads.pop(uid, None)
             return
 
-        if not file_path or error:
-            await reply.edit(f"❌ Download failed: {error or 'Unknown error'}")
-            active_downloads.pop(uid, None)
+        if not file_path or not os.path.exists(file_path):
+            await reply.edit("❌ Download failed.")
             return
 
         if os.path.getsize(file_path) > 2 * 1024 * 1024 * 1024:
-            await reply.edit("❌ File is too large (2GB limit for bots).")
+            await reply.edit("❌ File is too large (2GB limit).")
             os.remove(file_path)
-            active_downloads.pop(uid, None)
             return
 
-        await reply.edit("✍️ Send `/rename filename.ext` within 30s if you want to rename the file...")
+        await reply.edit("✍️ Send `/rename filename.ext` within 30s to rename the file...")
         for _ in range(30):
             await asyncio.sleep(1)
             if uid in pending_rename and "rename" in pending_rename[uid]:
@@ -221,25 +220,17 @@ async def process_upload(message: Message, url: str, user_msg: Message):
 
         rename = pending_rename.get(uid, {}).get("rename")
         if rename:
-            new_path = os.path.join("downloads", rename)
+            new_path = os.path.join("downloads", sanitize_filename(rename))
             os.rename(file_path, new_path)
             file_path = new_path
 
         await reply.edit("📤 Uploading to Telegram...")
-        start = time.time()
-        try:
-            sent = await message.reply_document(file_path, caption=f"✅ Done in {round(time.time() - start, 2)}s")
-        except Exception as e:
-            await reply.edit(f"❌ Upload failed: {e}")
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            active_downloads.pop(uid, None)
-            return
-
+        sent = await message.reply_document(file_path, caption="✅ Upload complete.")
         await asyncio.sleep(300)
         await reply.delete()
         await sent.delete()
-        os.remove(file_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
     except Exception as e:
         await reply.edit(f"❌ Error: {e}")
