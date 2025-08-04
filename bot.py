@@ -132,7 +132,7 @@ async def add_users_cmd(_, msg: Message):
         return await msg.reply("❗ Usage: `/addusers 123456789`")
     try:
         uid = int(msg.command[1])
-        add_user(uid, by_owner=True)
+        add_user(uid)
         await msg.reply(f"✅ User `{uid}` added to allowed list.")
     except:
         await msg.reply("❌ Invalid user ID.")
