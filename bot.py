@@ -27,7 +27,7 @@ def sanitize_filename(name):
 async def start(_, msg: Message):
     uid = msg.from_user.id
     if uid == OWNER_ID:
-        add_user(uid, by_owner=True)
+        add_user(uid)
 
     if uid not in get_users():
         await msg.reply(
