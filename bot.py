@@ -184,7 +184,7 @@ async def process_upload(message: Message, url: str, user_msg: Message):
         timeout = aiohttp.ClientTimeout(total=300)
 
         if url.startswith("magnet:") or url.endswith(".torrent"):
-            file_path, error = download_with_aria2(url)
+            file_path = await download_with_aria2(url)
         elif url.startswith("http://") or url.startswith("https://"):
             parsed = urlparse(url)
             file_name = unquote(os.path.basename(parsed.path))[:100]
