@@ -30,22 +30,30 @@ def get_unique_filename(original_name):
 
 # 🚀 Download using aria2 (supports HTTP, magnet, torrent)
 async def download_with_aria2(url, download_path="downloads"):
-    aria2 = aria2p.API(
-        aria2p.Client(
-            host="http://localhost",
-            port=6800,
-            secret="madara123"
+    try:
+        aria2 = aria2p.API(
+            aria2p.Client(
+                host="http://localhost",
+                port=6800,
+                secret="madara123"
+            )
         )
-    )
 
-    # Add URI (magnet/torrent/http)
-    download = aria2.add_uri([url], options={"dir": download_path})
+        # Add URI (magnet/torrent/http)
+        download = aria2.add_uri([url], options={"dir": download_path})
 
-    # Wait until complete
-    while not download.is_complete:
-        await asyncio.sleep(2)
-        download = aria2.get_download(download.gid)
+        # Wait until complete
+        while not download.is_complete and not download.error_message:
+            await asyncio.sleep(2)
+            download = aria2.get_download(download.gid)
 
-    # Return final file path
-    return download.files[0].path
-    
+        # Check for error
+        if download.error_message:
+            return None, f"❌ Aria2 Error: {download.error_message}"
+
+        # Return final file path
+        return download.files[0].path, None
+
+    except Exception as e:
+        return None, f"⚠️ Download Failed: {str(e)}"
+        
