@@ -21,7 +21,8 @@ user_modes = {}
 user_last_request = {}
 
 def sanitize_filename(name):
-    return re.sub(r"[^\w\-_. ]", "_", name)
+    name = re.sub(r"[^\w\-_.]", "_", name)
+    return name.strip("._")[:100]
 
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
