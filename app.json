@@ -1,7 +1,7 @@
 {
   "name": "MadaraUchihaFileBot",
   "description": "Telegram Leech / Downloader Bot using Pyrogram and Aria2",
-  "repository": "https://github.com/cookies2002/url_uploader_bot/actions",
+  "repository": "https://github.com/demonlord2002/demonurl/actions",
   "keywords": ["telegram", "bot", "aria2", "pyrogram"],
   "buildpacks": [
     {
