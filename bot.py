@@ -176,85 +176,102 @@ async def handle_url(_, message: Message):
     pending_rename.pop(uid, None)
 
 async def process_upload(message: Message, url: str, user_msg: Message):
-    uid = message.from_user.id
-    reply = await user_msg.reply("📥 Downloading...")
-    file_path = None
-    try:
-        mode = user_modes.get(uid, "normal")
-        chunk_size = 10 * 1024 * 1024 if mode == "fast" else 5 * 1024 * 1024
-        timeout = aiohttp.ClientTimeout(total=300)
+    uid = message.from_user.id
+    reply = await user_msg.reply("📥 Downloading...")
+    file_path = None
+    try:
+        mode = user_modes.get(uid, "normal")
+        chunk_size = 10 * 1024 * 1024 if mode == "fast" else 5 * 1024 * 1024
+        timeout = aiohttp.ClientTimeout(total=300)
 
-        # 🔥 Torrent or Magnet
-        if url.startswith("magnet:") or url.endswith(".torrent"):
-            file_path, error = await download_with_aria2(url)
-            if error:
-                await reply.edit(error)
-                return
+        # 🔥 Torrent or Magnet
+        if url.startswith("magnet:") or url.endswith(".torrent"):
+            file_path, error = await download_with_aria2(url)
+            if error:
+                await reply.edit(error)
+                return
 
-        # 🌐 Direct HTTP/HTTPS
-        elif url.startswith("http://") or url.startswith("https://"):
-            parsed = urlparse(url)
-            file_name = unquote(os.path.basename(parsed.path))[:100]
-            os.makedirs("downloads", exist_ok=True)
-            file_path = f"downloads/{uuid.uuid4().hex}_{file_name}"
+        # 🌐 Direct HTTP/HTTPS
+        elif url.startswith("http://") or url.startswith("https://"):
+            os.makedirs("downloads", exist_ok=True)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        await reply.edit("❌ Download failed.")
+                        return
 
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        await reply.edit("❌ Download failed.")
-                        return
-                    async with aiofiles.open(file_path, "wb") as f:
-                        async for chunk in resp.content.iter_chunked(chunk_size):
-                            await f.write(chunk)
+                    # 🔍 Try to extract filename from headers
+                    cd = resp.headers.get("Content-Disposition")
+                    if cd:
+                        match = re.search('filename="?([^"]+)"?', cd)
+                        file_name = match.group(1) if match else None
+                    else:
+                        file_name = None
 
-        else:
-            await reply.edit("❌ Invalid link.")
-            return
+                    # 🔁 Fallback to URL path
+                    if not file_name:
+                        parsed = urlparse(url)
+                        file_name = unquote(os.path.basename(parsed.path))
 
-        # 📂 File existence check
-        if not file_path or not os.path.exists(file_path):
-            await reply.edit("❌ Download failed.")
-            return
+                    # 🧼 Final fallback
+                    if not file_name or file_name.strip() == "":
+                        file_name = f"downloaded_{uuid.uuid4().hex[:8]}.bin"
 
-        # 🚫 2GB file limit
-        if os.path.getsize(file_path) > 2 * 1024 * 1024 * 1024:
-            await reply.edit("❌ File is too large (2GB limit).")
-            os.remove(file_path)
-            return
+                    file_name = sanitize_filename(file_name[:100])
+                    file_path = f"downloads/{uuid.uuid4().hex}_{file_name}"
 
-        # ✍️ Allow rename before upload
-        await reply.edit("✍️ Send `/rename filename.ext` within 30s to rename the file...")
-        for _ in range(30):
-            await asyncio.sleep(1)
-            if uid in pending_rename and "rename" in pending_rename[uid]:
-                break
+                    # 💾 Download file
+                    async with aiofiles.open(file_path, "wb") as f:
+                        async for chunk in resp.content.iter_chunked(chunk_size):
+                            await f.write(chunk)
 
-        rename = pending_rename.get(uid, {}).get("rename")
-        if rename:
-            new_path = os.path.join("downloads", sanitize_filename(rename))
-            os.rename(file_path, new_path)
-            file_path = new_path
+        else:
+            await reply.edit("❌ Invalid link.")
+            return
 
-        # 📤 Upload to Telegram
-        await reply.edit("📤 Uploading to Telegram...")
-        sent = await message.reply_document(file_path, caption="✅ Upload complete.")
+        # 📂 File existence check
+        if not file_path or not os.path.exists(file_path):
+            await reply.edit("❌ Download failed.")
+            return
 
-        # ⏳ Auto delete after 5 minutes
-        await asyncio.sleep(300)
-        await reply.delete()
-        await sent.delete()
+        # 🚫 2GB file limit
+        if os.path.getsize(file_path) > 2 * 1024 * 1024 * 1024:
+            await reply.edit("❌ File is too large (2GB limit).")
+            os.remove(file_path)
+            return
 
-        # 🧹 Cleanup
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # ✍️ Allow rename before upload
+        await reply.edit("✍️ Send `/rename filename.ext` within 30s to rename the file...")
+        for _ in range(30):
+            await asyncio.sleep(1)
+            if uid in pending_rename and "rename" in pending_rename[uid]:
+                break
 
-    except Exception as e:
-        await reply.edit(f"❌ Error: {e}")
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-    finally:
-        active_downloads.pop(uid, None)
+        rename = pending_rename.get(uid, {}).get("rename")
+        if rename:
+            new_path = os.path.join("downloads", sanitize_filename(rename))
+            os.rename(file_path, new_path)
+            file_path = new_path
 
+        # 📤 Upload to Telegram
+        await reply.edit("📤 Uploading to Telegram...")
+        sent = await message.reply_document(file_path, caption="✅ Upload complete.")
+
+        # ⏳ Auto delete after 5 minutes
+        await asyncio.sleep(300)
+        await reply.delete()
+        await sent.delete()
+
+        # 🧹 Cleanup
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    except Exception as e:
+        await reply.edit(f"❌ Error: {e}")
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+    finally:
+        active_downloads.pop(uid, None)
 
 print("🚀 Madara Uchiha's Forbidden Uploader Bot has awakened!")
 bot.run()
