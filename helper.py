@@ -51,8 +51,22 @@ async def download_with_aria2(url, download_path="downloads"):
         if download.error_message:
             return None, f"❌ Aria2 Error: {download.error_message}"
 
-        # Return final file path
-        return download.files[0].path, None
+        # 🔍 Select the best file to return
+        files = download.files
+        if not files:
+            return None, "❌ No files found in download."
+
+        # 🥇 Priority: pick the largest .mkv or video file
+        video_exts = ['.mkv', '.mp4', '.avi', '.mov', '.webm']
+        video_files = [f for f in files if os.path.splitext(f.path)[-1].lower() in video_exts]
+
+        if video_files:
+            largest_video = max(video_files, key=lambda x: x.length)
+            return largest_video.path, None
+
+        # 🥈 Otherwise, return the largest file
+        largest_file = max(files, key=lambda x: x.length)
+        return largest_file.path, None
 
     except Exception as e:
         return None, f"⚠️ Download Failed: {str(e)}"
