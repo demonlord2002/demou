@@ -12,6 +12,7 @@ import aiofiles
 import asyncio
 from urllib.parse import urlparse, unquote
 import uuid
+import tempfile
 import re
 
 bot = Client("4GBUploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -21,9 +22,8 @@ active_downloads = {}
 user_modes = {}
 user_last_request = {}
 
-def sanitize_filename(name):
-    name = re.sub(r"[\\/:*?\"<>|]", "_", name)  # Replace illegal characters
-    return name.strip()
+def sanitize_filename(filename):
+    return re.sub(r'[\\/*?:"<>|]', "_", filename)
 
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
@@ -78,34 +78,50 @@ async def rename_command(_, msg: Message):
         return await msg.reply("❌ Access denied.")
 
     if len(msg.command) < 2:
-        return await msg.reply("❌ Usage: `/rename newfilename.mkv`", quote=True)
+        return await msg.reply("❌ Usage: `/rename newfilename.ext`", quote=True)
 
     if not msg.reply_to_message or not msg.reply_to_message.document:
-        return await msg.reply("❌ Reply to a document/file to rename it.", quote=True)
+        return await msg.reply("❌ Reply to a document to rename.", quote=True)
 
     file_message = msg.reply_to_message
     new_filename = sanitize_filename(" ".join(msg.command[1:]))
 
-    downloading = await msg.reply("📥 Downloading file...")
+    temp_status = await msg.reply("📥 Fast downloading...")
 
     try:
-        # Download the file with new name
-        path = await file_message.download(file_name=new_filename)
-    except Exception as e:
-        return await downloading.edit(f"❌ Failed to download file.\nError: `{str(e)}`")
+        # Get original file extension if not provided
+        if "." not in new_filename and file_message.document.file_name:
+            ext = os.path.splitext(file_message.document.file_name)[1]
+            new_filename += ext
 
-    await downloading.edit("📤 Uploading renamed file...")
+        download_path = os.path.join("downloads", new_filename)
+        os.makedirs("downloads", exist_ok=True)
+
+        # Fast download using stream (saves memory)
+        await file_message.download(file_name=download_path)
+
+    except Exception as e:
+        return await temp_status.edit(f"❌ Download failed:\n`{str(e)}`")
+
+    await temp_status.edit("📤 Uploading file...")
 
     try:
         await msg.reply_document(
-            document=path,
-            caption=f"✅ Renamed to: `{new_filename}`",
+            document=download_path,
+            caption=f"✅ Renamed to `{new_filename}`",
             quote=True
         )
     except Exception as e:
-        await downloading.edit(f"❌ Upload failed.\nError: `{str(e)}`")
-    else:
-        await downloading.delete()
+        return await temp_status.edit(f"❌ Upload failed:\n`{str(e)}`")
+
+    await temp_status.delete()
+
+    # Optional: Delete after upload to save space
+    try:
+        os.remove(download_path)
+    except Exception:
+        pass
+
 
 @bot.on_message(filters.command("cancel"))
 async def cancel_command(_, msg: Message):
