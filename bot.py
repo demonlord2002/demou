@@ -22,8 +22,8 @@ user_modes = {}
 user_last_request = {}
 
 def sanitize_filename(name):
-    name = re.sub(r"[^\w\-_.]", "_", name)
-    return name.strip("._")[:100]
+    name = re.sub(r"[\\/:*?\"<>|]", "_", name)  # Replace illegal characters
+    return name.strip()
 
 @bot.on_message(filters.command("start"))
 async def start(_, msg: Message):
@@ -76,32 +76,36 @@ async def rename_command(_, msg: Message):
     uid = msg.from_user.id
     if uid not in get_users():
         return await msg.reply("❌ Access denied.")
-    
+
     if len(msg.command) < 2:
         return await msg.reply("❌ Usage: `/rename newfilename.mkv`", quote=True)
-    
+
     if not msg.reply_to_message or not msg.reply_to_message.document:
         return await msg.reply("❌ Reply to a document/file to rename it.", quote=True)
 
     file_message = msg.reply_to_message
-    new_filename = sanitize_filename(msg.command[1])
-    
+    new_filename = sanitize_filename(" ".join(msg.command[1:]))
+
     downloading = await msg.reply("📥 Downloading file...")
 
-    # Download the file
-    path = await file_message.download(file_name=new_filename)
-    
-    await downloading.edit("📤 Uploading as renamed file...")
+    try:
+        # Download the file with new name
+        path = await file_message.download(file_name=new_filename)
+    except Exception as e:
+        return await downloading.edit(f"❌ Failed to download file.\nError: `{str(e)}`")
 
-    # Upload the renamed file
-    await msg.reply_document(
-        document=path,
-        caption=f"✅ Renamed to `{new_filename}`",
-        quote=True
-    )
+    await downloading.edit("📤 Uploading renamed file...")
 
-    await downloading.delete()
-
+    try:
+        await msg.reply_document(
+            document=path,
+            caption=f"✅ Renamed to: `{new_filename}`",
+            quote=True
+        )
+    except Exception as e:
+        await downloading.edit(f"❌ Upload failed.\nError: `{str(e)}`")
+    else:
+        await downloading.delete()
 
 @bot.on_message(filters.command("cancel"))
 async def cancel_command(_, msg: Message):
