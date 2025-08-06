@@ -3,6 +3,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from user_db import add_user, get_users, remove_user, format_user_list, is_user
 from helper import download_with_aria2
+from pyrogram.types import InputMediaDocument
 
 import os
 import time
@@ -70,18 +71,37 @@ async def help_command(_, msg: Message):
         "DM @Madara_Uchiha_lI to unlock the gate."
     )
 
-@bot.on_message(filters.command("rename"))
+@bot.on_message(filters.command("rename") & filters.reply)
 async def rename_command(_, msg: Message):
     uid = msg.from_user.id
     if uid not in get_users():
         return await msg.reply("❌ Access denied.")
+    
     if len(msg.command) < 2:
-        return await msg.reply("❌ Usage: `/rename newfilename.ext`")
-    if uid not in pending_rename:
-        return await msg.reply("❗ No URL sent yet. Send a link first.")
-    safe_name = sanitize_filename(msg.command[1])
-    pending_rename[uid]["rename"] = safe_name
-    await msg.reply(f"✅ Filename set to: `{safe_name}`")
+        return await msg.reply("❌ Usage: `/rename newfilename.mkv`", quote=True)
+    
+    if not msg.reply_to_message or not msg.reply_to_message.document:
+        return await msg.reply("❌ Reply to a document/file to rename it.", quote=True)
+
+    file_message = msg.reply_to_message
+    new_filename = sanitize_filename(msg.command[1])
+    
+    downloading = await msg.reply("📥 Downloading file...")
+
+    # Download the file
+    path = await file_message.download(file_name=new_filename)
+    
+    await downloading.edit("📤 Uploading as renamed file...")
+
+    # Upload the renamed file
+    await msg.reply_document(
+        document=path,
+        caption=f"✅ Renamed to `{new_filename}`",
+        quote=True
+    )
+
+    await downloading.delete()
+
 
 @bot.on_message(filters.command("cancel"))
 async def cancel_command(_, msg: Message):
