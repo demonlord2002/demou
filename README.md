@@ -1,5 +1,5 @@
 
-<p align="center"><a href="https://dashboard.heroku.com/new?template=https://github.com/cookies2002/url_uploader_bot"> <img src="https://www.herokucdn.com/deploy/button.svg"></a></p>
+<p align="center"><a href="https://dashboard.heroku.com/new?template=https://github.com/demonlord2002/demonurl"> <img src="https://www.herokucdn.com/deploy/button.svg"></a></p>
 
 
 # 🚀 Telegram URL + Magnet Uploader Bot (4GB Supported)
