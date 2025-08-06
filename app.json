@@ -1,41 +1,43 @@
 {
-  "name": "madara-aria2-bot",
-  "description": "A lightweight Telegram aria2 leech bot with Pyrogram",
-  "env": {
-    "API_ID": {
-      "description": "Your Telegram API ID",
-      "required": true
-    },
-    "API_HASH": {
-      "description": "Your Telegram API HASH",
-      "required": true
-    },
-    "BOT_TOKEN": {
-      "description": "Your bot token from @BotFather",
-      "required": true
-    },
-    "OWNER_ID": {
-      "description": "Your Telegram user ID (as int)",
-      "required": true
-    },
-    "ARIA2_SECRET": {
-      "description": "Secret key used in aria2c --rpc-secret",
-      "required": true
-    }
-  },
+  "name": "MadaraUchihaFileBot",
+  "description": "Telegram Leech / Downloader Bot using Pyrogram and Aria2",
+  "repository": "https://github.com/cookies2002/url_uploader_bot/actions",
+  "keywords": ["telegram", "bot", "aria2", "pyrogram"],
   "buildpacks": [
     {
       "url": "heroku/python"
     }
   ],
+  "env": {
+    "API_ID": {
+      "description": "Telegram API ID",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Telegram API Hash",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "Telegram Bot Token",
+      "required": true
+    },
+    "OWNER_ID": {
+      "description": "Your Telegram User ID (integer)",
+      "required": true
+    },
+    "ARIA2_SECRET": {
+      "description": "Aria2 RPC secret",
+      "required": true
+    }
+  },
   "formation": {
-    "web": {
+    "worker": {
       "quantity": 1,
-      "size": "free"
+      "size": "Basic"
     }
   },
   "addons": [],
   "scripts": {
-    "postdeploy": "echo '✅ Deployed successfully. Configure .env variables in Heroku dashboard.'"
+    "postdeploy": "echo 'Bot deployed successfully!'"
   }
 }
