@@ -1,7 +1,8 @@
 {
-  "name": "madara-url-uploader-bot",
-  "description": "A Telegram bot to rename, upload, and download files. No MongoDB required.",
+  "name": "madara-leech-bot",
+  "description": "Telegram File Leech Bot using Pyrogram and Aria2",
   "repository": "https://github.com/cookies2002/url_uploader_bot",
+  "keywords": ["telegram", "pyrogram", "aria2", "leech", "bot"],
   "env": {
     "API_ID": {
       "description": "Your Telegram API ID",
@@ -12,11 +13,11 @@
       "required": true
     },
     "BOT_TOKEN": {
-      "description": "Telegram Bot Token from @BotFather",
+      "description": "Your Telegram Bot Token from @BotFather",
       "required": true
     },
     "OWNER_ID": {
-      "description": "Your Telegram numeric user ID",
+      "description": "Your Telegram User ID (numeric)",
       "required": true
     }
   },
@@ -33,6 +34,6 @@
   },
   "addons": [],
   "scripts": {
-    "postdeploy": "echo Madara URL Uploader Bot deployed successfully."
+    "postdeploy": "echo Bot deployed successfully!"
   }
 }
