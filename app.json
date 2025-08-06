@@ -1,27 +1,22 @@
 {
-  "name": "Madara Uchiha Rename Bot",
-  "description": "A Pyrogram bot to rename and manage Telegram files with aria2 and MongoDB support.",
-  "repository": "https://github.com/yourusername/yourrepo",
-  "keywords": ["telegram", "pyrogram", "bot", "rename", "aria2", "mongodb"],
+  "name": "madara-url-uploader-bot",
+  "description": "A Telegram bot to rename, upload, and download files. No MongoDB required.",
+  "repository": "https://github.com/cookies2002/url_uploader_bot",
   "env": {
     "API_ID": {
-      "description": "Your Telegram API ID from my.telegram.org",
+      "description": "Your Telegram API ID",
       "required": true
     },
     "API_HASH": {
-      "description": "Your Telegram API HASH from my.telegram.org",
+      "description": "Your Telegram API HASH",
       "required": true
     },
     "BOT_TOKEN": {
-      "description": "Your bot token from @BotFather",
+      "description": "Telegram Bot Token from @BotFather",
       "required": true
     },
     "OWNER_ID": {
-      "description": "Your Telegram user ID (as int)",
-      "required": true
-    },
-    "MONGO_URL": {
-      "description": "MongoDB URI string for saving user data",
+      "description": "Your Telegram numeric user ID",
       "required": true
     }
   },
@@ -36,5 +31,8 @@
       "size": "free"
     }
   },
-  "stack": "container"
+  "addons": [],
+  "scripts": {
+    "postdeploy": "echo Madara URL Uploader Bot deployed successfully."
+  }
 }
