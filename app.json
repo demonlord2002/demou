@@ -11,22 +11,27 @@
   "env": {
     "API_ID": {
       "description": "Telegram API ID",
+      "value": "23559126",
       "required": true
     },
     "API_HASH": {
       "description": "Telegram API Hash",
+      "value": "58347a441c011b1b9ee3367ea936dcc4",
       "required": true
     },
     "BOT_TOKEN": {
       "description": "Telegram Bot Token",
+      "value": "7479028842:AAF_Ag8L6UR5G2VVNrhI-sCkvYjlNyx7IJs",
       "required": true
     },
     "OWNER_ID": {
       "description": "Your Telegram User ID (integer)",
+      "value": "7813285237",
       "required": true
     },
     "ARIA2_SECRET": {
       "description": "Aria2 RPC secret",
+      "value": "madara123",
       "required": true
     }
   },
