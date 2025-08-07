@@ -206,12 +206,18 @@ async def handle_url(_, message: Message):
         return await message.reply("❌ Forbidden. Ask @Madara_Uchiha_lI to unlock access.")
     if uid in user_last_request and time.time() - user_last_request[uid] < 20:
         return await message.reply("⏳ Please wait a few seconds before sending another request.")
+    
     user_last_request[uid] = time.time()
+
+    if not message.text:
+        return await message.reply("❌ Please send a valid URL as text.")
 
     url = message.text.strip()
     reply = await message.reply("📥 Starting download...")
+
     pending_rename[uid] = {"url": url, "msg": message}
     active_downloads[uid] = True
+
     await process_upload(message, url, message)
     pending_rename.pop(uid, None)
 
